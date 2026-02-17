@@ -1061,6 +1061,7 @@
     if (error) { showAuthError(error.message); return; }
     closeAuth();
     await loadUserProfile();
+    showApp();
   }
 
   async function handleSignup() {
@@ -1081,13 +1082,21 @@
     btn.textContent = 'Create Account'; btn.disabled = false;
 
     if (error) { showAuthError(error.message); return; }
-    closeAuth();
 
-    // Show confirmation message
-    const toast = document.getElementById('toast');
-    toast.textContent = 'Check your email to confirm your account!';
-    toast.classList.add('show');
-    setTimeout(() => { toast.classList.remove('show'); toast.textContent = 'Copied to clipboard!'; }, 4000);
+    // If user is immediately signed in (no email confirmation)
+    if (data.session) {
+      closeAuth();
+      // Small delay for database trigger to create profile
+      await new Promise(r => setTimeout(r, 1000));
+      await loadUserProfile();
+      showApp();
+    } else {
+      closeAuth();
+      const toast = document.getElementById('toast');
+      toast.textContent = 'Check your email to confirm your account!';
+      toast.classList.add('show');
+      setTimeout(() => { toast.classList.remove('show'); toast.textContent = 'Copied to clipboard!'; }, 4000);
+    }
   }
 
   async function handleLogout() {
@@ -1272,3 +1281,4 @@
   loadUserProfile();
 </script>
 </body>
+</html>
