@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ResumeAI — AI-Powered Resume & Cover Letter Builder</title>
+  <meta name="description" content="Generate tailored, ATS-optimized resumes and cover letters in seconds with AI. Free to start." />
+  <meta name="keywords" content="AI resume builder, cover letter generator, ATS resume, free resume maker" />
+  <meta property="og:title" content="ResumeAI — AI Resume & Cover Letter Builder" />
+  <meta property="og:description" content="Generate tailored, ATS-optimized resumes and cover letters in seconds." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface-hover: #222;
+      --border: #2a2a2a;
+      --border-light: #333;
+      --text: #e8e4de;
+      --text-muted: #8a8478;
+      --accent: #c9a96e;
+      --accent-dark: #a68844;
+      --accent-glow: rgba(201, 169, 110, 0.15);
+      --white: #fff;
+      --error: #d4554a;
+      --green: #5cb85c;
+      --font: 'DM Sans', -apple-system, sans-serif;
+      --display: 'Playfair Display', Georgia, serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ---- NAVIGATION ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .logo-icon { color: var(--accent); font-size: 20px; }
+    .logo-text { font-family: var(--display); font-size: 20px; font-weight: 700; color: var(--text); }
+    .nav-right { display: flex; align-items: center; gap: 20px; }
+    .nav-link { color: var(--text-muted); cursor: pointer; font-size: 14px; text-decoration: none; }
+    .nav-link:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent); color: #1a1a1a; border: none; border-radius: 8px;
+      padding: 8px 18px; font-weight: 600; font-size: 14px; cursor: pointer; font-family: var(--font);
+    }
+
+    /* ---- CONTAINER ---- */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+    .app-container { max-width: 720px; margin: 0 auto; padding: 0 24px 60px; }
+
+    /* ---- SECTIONS ---- */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ---- HERO ---- */
+    .hero { text-align: center; padding: 80px 0 60px; animation: fadeIn 0.6s ease-out; }
+    .badge {
+      display: inline-block; background: var(--accent-glow); color: var(--accent);
+      border: 1px solid rgba(166, 136, 68, 0.27); border-radius: 20px;
+      padding: 6px 16px; font-size: 13px; font-weight: 500; margin-bottom: 24px; letter-spacing: 0.5px;
+    }
+    .hero-title {
+      font-family: var(--display); font-size: 48px; font-weight: 700;
+      line-height: 1.15; margin-bottom: 20px; color: var(--white);
+    }
+    .hero-accent { color: var(--accent); }
+    .hero-sub {
+      font-size: 17px; color: var(--text-muted); max-width: 520px;
+      margin: 0 auto 32px; line-height: 1.6;
+    }
+    .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--accent); color: #1a1a1a; border: none; border-radius: 10px;
+      padding: 14px 28px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: var(--font);
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .btn-primary:hover { transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-secondary {
+      background: transparent; color: var(--text); border: 1px solid var(--border-light);
+      border-radius: 10px; padding: 14px 28px; font-size: 16px; font-weight: 500;
+      cursor: pointer; font-family: var(--font);
+    }
+    .btn-secondary:hover { background: var(--surface); }
+    .hero-note { font-size: 13px; color: var(--text-muted); margin-top: 16px; }
+
+    /* ---- FEATURES ---- */
+    .features {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px; padding: 40px 0 60px; border-top: 1px solid var(--border);
+    }
+    .feature-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px 24px;
+    }
+    .feature-icon { font-size: 28px; margin-bottom: 12px; }
+    .feature-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; color: var(--white); }
+    .feature-desc { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+
+    /* ---- PRICING ---- */
+    .pricing { padding: 40px 0 60px; border-top: 1px solid var(--border); text-align: center; }
+    .section-title { font-family: var(--display); font-size: 32px; font-weight: 700; margin-bottom: 32px; color: var(--white); }
+    .pricing-cards {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px; max-width: 640px; margin: 0 auto;
+    }
+    .pricing-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px 28px; text-align: left; position: relative;
+    }
+    .pricing-card.pro {
+      background: linear-gradient(145deg, #2a2318, #1a1a1a);
+      border-color: rgba(166, 136, 68, 0.33);
+    }
+    .pro-badge {
+      position: absolute; top: 16px; right: 16px; background: var(--accent);
+      color: #1a1a1a; font-size: 11px; font-weight: 700; padding: 3px 10px;
+      border-radius: 6px; letter-spacing: 1px;
+    }
+    .pricing-tier {
+      font-size: 14px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;
+    }
+    .pro .pricing-tier { color: #e8d5b0; }
+    .pricing-price { font-size: 42px; font-weight: 700; color: var(--white); margin-bottom: 20px; }
+    .pro .pricing-price { color: var(--white); }
+    .pricing-period { font-size: 16px; font-weight: 400; color: var(--text-muted); }
+    .pricing-list { list-style: none; margin-bottom: 24px; }
+    .pricing-item { font-size: 14px; color: var(--text-muted); padding: 6px 0; }
+    .pro .pricing-item { color: #d4c5a9; }
+    .pricing-btn {
+      width: 100%; background: transparent; color: var(--text); border: 1px solid var(--border-light);
+      border-radius: 10px; padding: 12px; font-size: 15px; font-weight: 600;
+      cursor: pointer; font-family: var(--font);
+    }
+    .pricing-btn.pro-btn {
+      background: var(--accent); color: #1a1a1a; border: none;
+    }
+
+    /* ---- FOOTER ---- */
+    .footer {
+      border-top: 1px solid var(--border); padding: 24px 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-logo { color: var(--text-muted); font-size: 14px; font-weight: 600; }
+    .footer-text { color: var(--text-muted); font-size: 13px; }
+
+    /* ---- APP NAV ---- */
+    .app-nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+    }
+    .usage-badge {
+      display: flex; align-items: center; gap: 8px; font-size: 13px;
+      color: var(--text-muted); background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 14px;
+    }
+    .usage-dot {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+    }
+    .usage-dot.green { background: var(--green); }
+    .usage-dot.yellow { background: var(--accent); }
+    .usage-dot.red { background: var(--error); }
+
+    /* ---- TABS ---- */
+    .tabs { display: flex; gap: 8px; margin-bottom: 28px; }
+    .tab {
+      flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text-muted); font-size: 14px; font-weight: 500;
+      cursor: pointer; font-family: var(--font); transition: all 0.15s; text-align: center;
+    }
+    .tab.active {
+      background: var(--accent-glow); border-color: rgba(166, 136, 68, 0.4); color: var(--accent);
+    }
+
+    /* ---- FORM ---- */
+    .form-container { animation: fadeIn 0.4s ease-out; }
+    .form-title {
+      font-family: var(--display); font-size: 26px; font-weight: 700;
+      margin-bottom: 6px; color: var(--white);
+    }
+    .form-sub { color: var(--text-muted); font-size: 14px; margin-bottom: 28px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .form-group { margin-bottom: 16px; }
+    .label {
+      display: block; font-size: 13px; font-weight: 600; color: var(--text-muted);
+      margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.8px;
+    }
+    .input, .select, .textarea {
+      width: 100%; padding: 12px 14px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+      font-size: 15px; font-family: var(--font); outline: none; transition: border-color 0.15s;
+    }
+    .input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
+    .textarea { resize: vertical; line-height: 1.5; }
+    .generate-btn {
+      width: 100%; padding: 16px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: #1a1a1a; border: none; border-radius: 12px; font-size: 16px;
+      font-weight: 700; cursor: pointer; font-family: var(--font); margin-top: 8px;
+      letter-spacing: 0.3px; transition: opacity 0.15s;
+    }
+    .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ---- GENERATING ---- */
+    .generating { text-align: center; padding: 80px 0; animation: fadeIn 0.4s ease-out; }
+    .spinner {
+      width: 40px; height: 40px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 0 auto 24px;
+    }
+    .generating-title {
+      font-family: var(--display); font-size: 24px; font-weight: 600;
+      margin-bottom: 8px; color: var(--white);
+    }
+    .generating-sub { color: var(--text-muted); font-size: 14px; }
+
+    /* ---- RESULT ---- */
+    .result-container { animation: fadeIn 0.4s ease-out; }
+    .result-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+    }
+    .result-title {
+      font-family: var(--display); font-size: 22px; font-weight: 700; color: var(--white);
+    }
+    .result-actions { display: flex; gap: 8px; }
+    .copy-btn {
+      background: var(--surface); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 500;
+      cursor: pointer; font-family: var(--font);
+    }
+    .copy-btn:hover { background: var(--surface-hover); }
+    .pro-export-btn {
+      background: var(--accent-glow); color: var(--accent);
+      border: 1px solid rgba(166, 136, 68, 0.27); border-radius: 8px;
+      padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font);
+    }
+    .result-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px; max-height: 500px; overflow: auto;
+    }
+    .result-text {
+      margin: 0; white-space: pre-wrap; font-family: var(--font);
+      font-size: 14px; line-height: 1.7; color: var(--text);
+    }
+    .result-footer {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 16px;
+    }
+    .start-over-btn {
+      background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 18px; font-size: 14px; cursor: pointer; font-family: var(--font);
+    }
+    .result-note { font-size: 13px; color: var(--text-muted); }
+
+    /* ---- ERROR ---- */
+    .error-box {
+      background: rgba(212, 85, 74, 0.08); border: 1px solid rgba(212, 85, 74, 0.2);
+      border-radius: 10px; padding: 12px 16px; color: var(--error); font-size: 14px; margin-bottom: 20px;
+    }
+
+    /* ---- MODAL ---- */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+      padding: 40px 36px; max-width: 400px; width: 100%; text-align: center;
+      position: relative; animation: fadeIn 0.3s ease-out;
+    }
+    .modal-close {
+      position: absolute; top: 16px; right: 16px; background: none; border: none;
+      color: var(--text-muted); font-size: 18px; cursor: pointer;
+    }
+    .modal-icon { font-size: 48px; margin-bottom: 16px; }
+    .modal-title {
+      font-family: var(--display); font-size: 26px; font-weight: 700;
+      margin-bottom: 10px; color: var(--white);
+    }
+    .modal-desc { color: var(--text-muted); font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
+    .modal-price { font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 20px; }
+    .modal-period { font-size: 18px; font-weight: 400; color: var(--text-muted); }
+    .modal-features {
+      list-style: none; text-align: left; font-size: 14px; color: var(--text);
+      line-height: 2; margin-bottom: 24px;
+    }
+    .modal-cta {
+      width: 100%; padding: 14px; background: var(--accent); color: #1a1a1a;
+      border: none; border-radius: 10px; font-size: 16px; font-weight: 700;
+      cursor: pointer; font-family: var(--font);
+    }
+    .modal-note { font-size: 12px; color: var(--text-muted); margin-top: 12px; }
+
+    /* ---- TOAST ---- */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--accent);
+      color: var(--accent); padding: 10px 20px; border-radius: 10px;
+      font-size: 14px; font-weight: 500; z-index: 200;
+      opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+
+    /* ---- ANIMATIONS ---- */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- RESPONSIVE ---- */
+    @media (max-width: 640px) {
+      .hero-title { font-size: 32px; }
+      .hero { padding: 50px 0 40px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .result-header { flex-direction: column; align-items: flex-start; }
+      .nav-link { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ==================== LANDING PAGE ==================== -->
+<div id="landing" class="section active">
+  <div class="container">
+    <nav class="nav">
+      <a class="logo" href="#">
+        <span class="logo-icon">◆</span>
+        <span class="logo-text">ResumeAI</span>
+      </a>
+      <div class="nav-right">
+        <a class="nav-link" href="#pricing-anchor">Pricing</a>
+        <button class="nav-cta" onclick="showApp()">Get Started Free</button>
+      </div>
+    </nav>
+
+    <div class="hero">
+      <div class="badge">✦ AI-Powered Career Tools</div>
+      <h1 class="hero-title">
+        Land Your Dream Job<br>
+        <span class="hero-accent">With AI Precision</span>
+      </h1>
+      <p class="hero-sub">
+        Generate tailored resumes and cover letters in seconds.
+        ATS-optimized, professionally written, and personalized to every job you apply for.
+      </p>
+      <div class="hero-ctas">
+        <button class="btn-primary" onclick="showApp()">Build My Resume — Free</button>
+        <button class="btn-secondary" onclick="showApp('coverLetter')">Write Cover Letter</button>
+      </div>
+      <p class="hero-note">3 free generations per day · No sign-up required</p>
+    </div>
+
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">30-Second Generation</div>
+        <div class="feature-desc">Paste a job description and your experience — get a polished document instantly.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <div class="feature-title">ATS Optimized</div>
+        <div class="feature-desc">Keyword-matched formatting that passes applicant tracking systems.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">✨</div>
+        <div class="feature-title">Multiple Tones</div>
+        <div class="feature-desc">Professional, confident, creative, or executive — match the company culture.</div>
+      </div>
+    </div>
+
+    <div class="pricing" id="pricing-anchor">
+      <h2 class="section-title">Simple Pricing</h2>
+      <div class="pricing-cards">
+        <div class="pricing-card">
+          <div class="pricing-tier">Free</div>
+          <div class="pricing-price">$0<span class="pricing-period">/forever</span></div>
+          <ul class="pricing-list">
+            <li class="pricing-item">✓ 3 generations per day</li>
+            <li class="pricing-item">✓ Resume & cover letter</li>
+            <li class="pricing-item">✓ Basic formatting</li>
+            <li class="pricing-item">✓ Copy to clipboard</li>
+          </ul>
+          <button class="pricing-btn" onclick="showApp()">Start Free</button>
+        </div>
+        <div class="pricing-card pro">
+          <div class="pro-badge">POPULAR</div>
+          <div class="pricing-tier">Pro</div>
+          <div class="pricing-price">$9<span class="pricing-period">/month</span></div>
+          <ul class="pricing-list">
+            <li class="pricing-item">✓ Unlimited generations</li>
+            <li class="pricing-item">✓ Premium templates</li>
+            <li class="pricing-item">✓ Export to DOCX & PDF</li>
+            <li class="pricing-item">✓ ATS score analysis</li>
+            <li class="pricing-item">✓ Priority support</li>
+          </ul>
+          <button class="pricing-btn pro-btn" onclick="openUpgrade()">Upgrade to Pro</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <span class="footer-logo">◆ ResumeAI</span>
+      <span class="footer-text">© 2025 · Built with AI</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ==================== APP ==================== -->
+<div id="app" class="section">
+  <div class="app-container">
+    <nav class="app-nav">
+      <a class="logo" onclick="showLanding()" style="cursor:pointer">
+        <span class="logo-icon">◆</span>
+        <span class="logo-text">ResumeAI</span>
+      </a>
+      <div class="usage-badge">
+        <span id="usage-dot" class="usage-dot green"></span>
+        <span id="usage-text">3 / 3 free today</span>
+      </div>
+    </nav>
+
+    <div class="tabs">
+      <button id="tab-resume" class="tab active" onclick="switchTab('resume')">📄 Resume Builder</button>
+      <button id="tab-coverLetter" class="tab" onclick="switchTab('coverLetter')">✉️ Cover Letter</button>
+    </div>
+
+    <!-- FORM VIEW -->
+    <div id="form-view" class="form-container">
+      <h2 class="form-title" id="form-title">Build Your Resume</h2>
+      <p class="form-sub" id="form-sub">Fill in the details below and our AI will generate a tailored document for you.</p>
+
+      <div id="error-box" class="error-box" style="display:none"></div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="label">Job Title *</label>
+          <input class="input" id="jobTitle" placeholder="e.g. Senior Product Manager" />
+        </div>
+        <div class="form-group">
+          <label class="label">Company</label>
+          <input class="input" id="company" placeholder="e.g. Google" />
+        </div>
+        <div class="form-group">
+          <label class="label">Industry</label>
+          <select class="select" id="industry">
+            <option>Technology</option><option>Finance</option><option>Healthcare</option>
+            <option>Marketing</option><option>Education</option><option>Engineering</option>
+            <option>Sales</option><option>Design</option><option>Legal</option><option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="label">Tone</label>
+          <select class="select" id="tone">
+            <option>Professional</option><option>Confident</option><option>Creative</option><option>Executive</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="label">Job Description</label>
+        <textarea class="textarea" id="jobDescription" rows="4" placeholder="Paste the job description here for the best results..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="label">Your Experience *</label>
+        <textarea class="textarea" id="experience" rows="4" placeholder="Describe your relevant work experience, achievements, and responsibilities..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="label">Key Skills *</label>
+        <textarea class="textarea" id="skills" rows="2" placeholder="e.g. Project management, Python, data analysis, team leadership..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="label">Education</label>
+        <input class="input" id="education" placeholder="e.g. B.S. Computer Science, Stanford University, 2020" />
+      </div>
+
+      <button class="generate-btn" id="generate-btn" onclick="handleGenerate()">✦ Generate Resume</button>
+    </div>
+
+    <!-- GENERATING VIEW -->
+    <div id="generating-view" class="generating" style="display:none">
+      <div class="spinner"></div>
+      <h2 class="generating-title" id="gen-title">Crafting your resume...</h2>
+      <p class="generating-sub">Our AI is analyzing the job requirements and tailoring your document.</p>
+    </div>
+
+    <!-- RESULT VIEW -->
+    <div id="result-view" class="result-container" style="display:none">
+      <div class="result-header">
+        <h2 class="result-title" id="result-label">📄 Your Tailored Resume</h2>
+        <div class="result-actions">
+          <button class="copy-btn" onclick="copyResult()">📋 Copy</button>
+          <button class="pro-export-btn" onclick="openUpgrade()">⬇ Export DOCX (Pro)</button>
+        </div>
+      </div>
+      <div class="result-box">
+        <pre class="result-text" id="result-text"></pre>
+      </div>
+      <div class="result-footer">
+        <button class="start-over-btn" onclick="startOver()">← Generate Another</button>
+        <span class="result-note" id="result-remaining">3 generations remaining today</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== UPGRADE MODAL ==================== -->
+<div id="upgrade-modal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeUpgrade()">✕</button>
+    <div class="modal-icon">🚀</div>
+    <h2 class="modal-title">Upgrade to Pro</h2>
+    <p class="modal-desc" id="modal-desc">Unlock unlimited generations, premium templates, and DOCX/PDF export.</p>
+    <div class="modal-price">$9<span class="modal-period">/month</span></div>
+    <ul class="modal-features">
+      <li>✓ Unlimited generations</li>
+      <li>✓ Premium resume templates</li>
+      <li>✓ Export to DOCX & PDF</li>
+      <li>✓ ATS compatibility score</li>
+      <li>✓ Priority AI processing</li>
+    </ul>
+    <!-- This button will link to your Stripe payment page -->
+    <button class="modal-cta" id="stripe-btn" onclick="alert('Stripe checkout will be connected here! See setup guide.')">Start 7-Day Free Trial</button>
+    <p class="modal-note">Cancel anytime · No credit card required to start</p>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast">Copied to clipboard!</div>
+
+<script>
+  // ---- STATE ----
+  const DAILY_LIMIT = 3;
+  let activeTab = 'resume';
+  let usageCount = 0;
+  let resultContent = '';
+
+  // ---- USAGE ----
+  function getUsage() {
+    try {
+      const raw = localStorage.getItem('resumeai_usage');
+      if (!raw) return 0;
+      const data = JSON.parse(raw);
+      return data.date === new Date().toDateString() ? data.count : 0;
+    } catch { return 0; }
+  }
+  function saveUsage(count) {
+    localStorage.setItem('resumeai_usage', JSON.stringify({
+      date: new Date().toDateString(), count
+    }));
+  }
+  function updateUsageUI() {
+    const remaining = DAILY_LIMIT - usageCount;
+    document.getElementById('usage-text').textContent = `${remaining} / ${DAILY_LIMIT} free today`;
+    const dot = document.getElementById('usage-dot');
+    dot.className = 'usage-dot ' + (remaining > 1 ? 'green' : remaining === 1 ? 'yellow' : 'red');
+    document.getElementById('result-remaining').textContent = `${remaining} generation${remaining !== 1 ? 's' : ''} remaining today`;
+
+    const btn = document.getElementById('generate-btn');
+    if (remaining <= 0) {
+      btn.textContent = '🔒 Upgrade to Pro for More';
+    } else {
+      btn.textContent = activeTab === 'resume' ? '✦ Generate Resume' : '✦ Generate Cover Letter';
+    }
+  }
+
+  // ---- NAVIGATION ----
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+  function showLanding() { showSection('landing'); }
+  function showApp(tab) {
+    if (tab) switchTab(tab);
+    showSection('app');
+    showView('form');
+  }
+  function showView(view) {
+    ['form-view', 'generating-view', 'result-view'].forEach(v => {
+      document.getElementById(v).style.display = 'none';
+    });
+    document.getElementById(view + '-view').style.display = '';
+  }
+
+  // ---- TABS ----
+  function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('tab-resume').className = 'tab' + (tab === 'resume' ? ' active' : '');
+    document.getElementById('tab-coverLetter').className = 'tab' + (tab === 'coverLetter' ? ' active' : '');
+    document.getElementById('form-title').textContent = tab === 'resume' ? 'Build Your Resume' : 'Write Your Cover Letter';
+    document.getElementById('form-sub').textContent = 'Fill in the details below and our AI will generate a tailored document for you.';
+    updateUsageUI();
+  }
+
+  // ---- GENERATE ----
+  async function handleGenerate() {
+    if (usageCount >= DAILY_LIMIT) { openUpgrade(); return; }
+
+    const jobTitle = document.getElementById('jobTitle').value.trim();
+    const experience = document.getElementById('experience').value.trim();
+    const skills = document.getElementById('skills').value.trim();
+    if (!jobTitle || !experience || !skills) {
+      showError('Please fill in the required fields (Job Title, Experience, Skills).');
+      return;
+    }
+
+    hideError();
+    showView('generating');
+    document.getElementById('gen-title').textContent =
+      `Crafting your ${activeTab === 'resume' ? 'resume' : 'cover letter'}...`;
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: activeTab,
+          jobTitle,
+          company: document.getElementById('company').value.trim(),
+          jobDescription: document.getElementById('jobDescription').value.trim(),
+          experience,
+          skills,
+          education: document.getElementById('education').value.trim(),
+          tone: document.getElementById('tone').value,
+          industry: document.getElementById('industry').value,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Generation failed');
+
+      resultContent = data.result;
+      document.getElementById('result-text').textContent = resultContent;
+      document.getElementById('result-label').textContent =
+        activeTab === 'resume' ? '📄 Your Tailored Resume' : '✉️ Your Cover Letter';
+
+      usageCount++;
+      saveUsage(usageCount);
+      updateUsageUI();
+      showView('result');
+    } catch (err) {
+      showView('form');
+      showError(err.message || 'Something went wrong. Please try again.');
+    }
+  }
+
+  // ---- ACTIONS ----
+  function copyResult() {
+    navigator.clipboard.writeText(resultContent).then(() => {
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    });
+  }
+  function startOver() { showView('form'); }
+  function showError(msg) {
+    const box = document.getElementById('error-box');
+    box.textContent = msg; box.style.display = '';
+  }
+  function hideError() { document.getElementById('error-box').style.display = 'none'; }
+
+  // ---- MODAL ----
+  function openUpgrade() { document.getElementById('upgrade-modal').classList.add('open'); }
+  function closeUpgrade() { document.getElementById('upgrade-modal').classList.remove('open'); }
+  document.getElementById('upgrade-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeUpgrade();
+  });
+
+  // ---- INIT ----
+  usageCount = getUsage();
+  updateUsageUI();
+</script>
+</body>
+</html>
