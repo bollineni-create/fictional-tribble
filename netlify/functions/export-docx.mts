@@ -17,13 +17,13 @@ export default async (req: Request, context: Context) => {
     });
   }
 
-  // ---- AUTH CHECK (Pro only) ----
+  // ---- AUTH CHECK (Pro+ only) ----
   const authHeader = req.headers.get("authorization");
-  const isPro = await checkProStatus(authHeader);
+  const tier = await checkTier(authHeader);
 
-  if (!isPro) {
+  if (tier === "free") {
     return new Response(
-      JSON.stringify({ error: "DOCX export is a Pro feature. Upgrade to access it!" }),
+      JSON.stringify({ error: "DOCX export requires a Pro or Max plan. Upgrade to access it!", tier }),
       { status: 403, headers: { "Content-Type": "application/json" } }
     );
   }
@@ -188,42 +188,29 @@ function buildDocument(content: string, title: string, type: string): Document {
   });
 }
 
-async function checkProStatus(authHeader: string | null): Promise<boolean> {
-  if (!authHeader) return false;
-
+async function checkTier(authHeader: string | null): Promise<string> {
+  if (!authHeader) return "free";
   try {
     const token = authHeader.replace("Bearer ", "");
     const supabaseUrl = Netlify.env.get("SUPABASE_URL");
     const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseServiceKey) return false;
-
+    if (!supabaseUrl || !supabaseServiceKey) return "free";
     const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: supabaseServiceKey,
-      },
+      headers: { Authorization: `Bearer ${token}`, apikey: supabaseServiceKey },
     });
-
-    if (!userRes.ok) return false;
+    if (!userRes.ok) return "free";
     const user = await userRes.json();
-
     const profileRes = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro`,
-      {
-        headers: {
-          apikey: supabaseServiceKey,
-          Authorization: `Bearer ${supabaseServiceKey}`,
-        },
-      }
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro,tier`,
+      { headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` } }
     );
-
-    if (!profileRes.ok) return false;
+    if (!profileRes.ok) return "free";
     const profiles = await profileRes.json();
-    return profiles.length > 0 && profiles[0].is_pro;
-  } catch {
-    return false;
-  }
+    if (profiles.length === 0) return "free";
+    const p = profiles[0];
+    if (p.tier) return p.tier;
+    return p.is_pro ? "pro" : "free";
+  } catch { return "free"; }
 }
 
 export const config: Config = {

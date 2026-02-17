@@ -2,7 +2,7 @@ import type { Context, Config } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
 
 // ---- CONFIGURATION ----
-const FREE_DAILY_LIMIT = 3;
+const TIER_LIMITS: Record<string, number> = { free: 3, pro: 10, max: 999 };
 const MAX_REQUESTS_PER_MINUTE = 5;
 const MAX_INPUT_LENGTH = 5000;
 
@@ -65,46 +65,13 @@ export default async (req: Request, context: Context) => {
     }
   }
 
-  // ---- CHECK PRO STATUS ----
-  let isPro = false;
+  // ---- CHECK TIER STATUS ----
+  let tier = "free";
   const authHeader = req.headers.get("authorization");
   if (authHeader) {
-    try {
-      const token = authHeader.replace("Bearer ", "");
-      const supabaseUrl = Netlify.env.get("SUPABASE_URL");
-      const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-      if (supabaseUrl && supabaseServiceKey) {
-        // Verify token and get user
-        const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-          headers: { "Authorization": `Bearer ${token}`, "apikey": supabaseServiceKey },
-        });
-
-        if (userRes.ok) {
-          const user = await userRes.json();
-          // Check profile for Pro status
-          const profileRes = await fetch(
-            `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro`,
-            {
-              headers: {
-                "apikey": supabaseServiceKey,
-                "Authorization": `Bearer ${supabaseServiceKey}`,
-              },
-            }
-          );
-          if (profileRes.ok) {
-            const profiles = await profileRes.json();
-            if (profiles.length > 0 && profiles[0].is_pro) {
-              isPro = true;
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Pro check error:", err);
-      // Continue as free user if check fails
-    }
+    tier = await checkTier(authHeader);
   }
+  const dailyLimit = TIER_LIMITS[tier] || TIER_LIMITS.free;
 
   // ---- SERVER-SIDE RATE LIMITING ----
   const clientIp = context.ip || req.headers.get("x-forwarded-for") || "unknown";
@@ -135,15 +102,18 @@ export default async (req: Request, context: Context) => {
       await store.setJSON(minuteKey, { count: 1, timestamp: Date.now() });
     }
 
-    // Check daily free limit (skip for Pro users)
+    // Check daily tier limit
     const dailyData = await store.get(rateLimitKey, { type: "json" });
     const dailyCount = dailyData?.count || 0;
 
-    if (!isPro && dailyCount >= FREE_DAILY_LIMIT) {
+    if (dailyCount >= dailyLimit) {
       return new Response(
         JSON.stringify({
-          error: "You've reached your 3 free daily generations. Upgrade to Pro for unlimited access!",
+          error: tier === "free"
+            ? "You've reached your 3 free daily generations. Upgrade for more!"
+            : `You've reached your ${dailyLimit} daily generations. Upgrade to Max for unlimited!`,
           limitReached: true,
+          tier,
         }),
         { status: 429, headers: { "Content-Type": "application/json" } }
       );
@@ -282,8 +252,8 @@ My Education: ${education || "Not provided"}`;
     return new Response(
       JSON.stringify({
         result: text,
-        remaining: isPro ? 999 : FREE_DAILY_LIMIT - dailyCount - 1,
-        isPro,
+        remaining: dailyLimit - dailyCount - 1,
+        tier,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
@@ -296,7 +266,30 @@ My Education: ${education || "Not provided"}`;
   }
 };
 
-// Hash IP for privacy - we don't store raw IPs
+async function checkTier(authHeader: string): Promise<string> {
+  try {
+    const token = authHeader.replace("Bearer ", "");
+    const supabaseUrl = Netlify.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) return "free";
+    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: supabaseServiceKey },
+    });
+    if (!userRes.ok) return "free";
+    const user = await userRes.json();
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro,tier`,
+      { headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` } }
+    );
+    if (!profileRes.ok) return "free";
+    const profiles = await profileRes.json();
+    if (profiles.length === 0) return "free";
+    const p = profiles[0];
+    if (p.tier) return p.tier;
+    return p.is_pro ? "pro" : "free";
+  } catch { return "free"; }
+}
+
 async function hashIp(ip: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(ip + "resumeai-salt-2025");

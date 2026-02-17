@@ -9,23 +9,46 @@ export default async (req: Request, context: Context) => {
   }
 
   const stripeKey = Netlify.env.get("STRIPE_SECRET_KEY");
-  const priceId = Netlify.env.get("STRIPE_PRICE_ID");
+  const proPriceId = Netlify.env.get("STRIPE_PRICE_ID");
+  const maxPriceId = Netlify.env.get("STRIPE_MAX_PRICE_ID");
 
-  if (!stripeKey || !priceId) {
+  if (!stripeKey || !proPriceId) {
     return new Response(
       JSON.stringify({ error: "Stripe not configured" }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 
+  // Parse body for plan selection
+  let body: any = {};
   try {
-    // Create a Stripe Checkout Session using the REST API directly
+    body = await req.json();
+  } catch {
+    // Default to pro if no body
+  }
+
+  const plan = body.plan || "pro";
+  let priceId: string;
+
+  if (plan === "max" && maxPriceId) {
+    priceId = maxPriceId;
+  } else if (plan === "max" && !maxPriceId) {
+    return new Response(
+      JSON.stringify({ error: "Max plan not configured yet. Please contact support." }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  } else {
+    priceId = proPriceId;
+  }
+
+  try {
     const params = new URLSearchParams();
     params.append("mode", "subscription");
     params.append("line_items[0][price]", priceId);
     params.append("line_items[0][quantity]", "1");
     params.append("ui_mode", "embedded");
-    // Use the request origin so this works on any domain (custom domain, deploy previews, etc.)
+    // Pass the plan as metadata so the webhook can set the tier
+    params.append("subscription_data[metadata][plan]", plan);
     const origin = new URL(req.url).origin;
     params.append("return_url", `${origin}/?session_id={CHECKOUT_SESSION_ID}`);
 

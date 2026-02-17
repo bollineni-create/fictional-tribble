@@ -23,7 +23,7 @@ interface Job {
 }
 
 export default function JobSearch() {
-  const { user, isPro } = useAuth()
+  const { user, isPro, tier } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
 
@@ -228,9 +228,11 @@ export default function JobSearch() {
               }}>Newest</button>
             </div>
           )}
-          {remaining !== null && !isPro && (
+          {remaining !== null && tier !== 'max' && (
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               {remaining} search{remaining !== 1 ? 'es' : ''} remaining today
+              {tier === 'free' && ' (5 free/day)'}
+              {tier === 'pro' && ' (25/day)'}
             </span>
           )}
         </div>

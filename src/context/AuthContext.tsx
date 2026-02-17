@@ -2,11 +2,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { supabase, withTimeout } from '../lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
 
+type Tier = 'free' | 'pro' | 'max'
+
 interface Profile {
   id: string
   email: string
   full_name?: string
   is_pro: boolean
+  tier?: Tier
   stripe_customer_id?: string
   stripe_subscription_id?: string
   pro_expires_at?: string
@@ -24,6 +27,8 @@ interface AuthContextType {
   logout: () => Promise<void>
   refreshProfile: () => Promise<void>
   isPro: boolean
+  isMax: boolean
+  tier: Tier
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -126,6 +131,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null)
   }
 
+  const tier: Tier = profile?.tier || (profile?.is_pro ? 'pro' : 'free')
+  const isPro = tier === 'pro' || tier === 'max'
+  const isMax = tier === 'max'
+
   return (
     <AuthContext.Provider
       value={{
@@ -137,7 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         refreshProfile,
-        isPro: profile?.is_pro ?? false,
+        isPro,
+        isMax,
+        tier,
       }}
     >
       {children}

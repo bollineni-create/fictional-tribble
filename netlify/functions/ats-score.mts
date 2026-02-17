@@ -1,7 +1,8 @@
 import type { Context, Config } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
 
-const FREE_DAILY_LIMIT = 1;
+// Free: 1/day, Pro: 5/day, Max: unlimited
+const TIER_LIMITS: Record<string, number> = { free: 1, pro: 5, max: 999 };
 
 export default async (req: Request, context: Context) => {
   if (req.method !== "POST") {
@@ -37,12 +38,13 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  // ---- CHECK PRO STATUS ----
-  let isPro = false;
+  // ---- CHECK TIER STATUS ----
+  let tier = "free";
   const authHeader = req.headers.get("authorization");
   if (authHeader) {
-    isPro = await checkProStatus(authHeader);
+    tier = await checkTier(authHeader);
   }
+  const dailyLimit = TIER_LIMITS[tier] || TIER_LIMITS.free;
 
   // ---- RATE LIMITING ----
   const clientIp = context.ip || req.headers.get("x-forwarded-for") || "unknown";
@@ -55,11 +57,14 @@ export default async (req: Request, context: Context) => {
     const dailyData = await store.get(rateLimitKey, { type: "json" });
     const dailyCount = dailyData?.count || 0;
 
-    if (!isPro && dailyCount >= FREE_DAILY_LIMIT) {
+    if (dailyCount >= dailyLimit) {
       return new Response(
         JSON.stringify({
-          error: "You've used your free ATS check today. Upgrade to Pro for unlimited checks!",
+          error: tier === "free"
+            ? "You've used your free ATS check today. Upgrade for more!"
+            : `You've reached your ${dailyLimit} daily ATS checks. Upgrade to Max for unlimited!`,
           limitReached: true,
+          tier,
         }),
         { status: 429, headers: { "Content-Type": "application/json" } }
       );
@@ -89,17 +94,8 @@ export default async (req: Request, context: Context) => {
 Return ONLY valid JSON, no markdown or explanation.`;
 
     const userMessage = jobDescription
-      ? `Analyze this resume for ATS compatibility against the following job description.
-
-RESUME:
-${resumeContent}
-
-JOB DESCRIPTION:
-${jobDescription}`
-      : `Analyze this resume for general ATS compatibility.
-
-RESUME:
-${resumeContent}`;
+      ? `Analyze this resume for ATS compatibility against the following job description.\n\nRESUME:\n${resumeContent}\n\nJOB DESCRIPTION:\n${jobDescription}`
+      : `Analyze this resume for general ATS compatibility.\n\nRESUME:\n${resumeContent}`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -131,7 +127,6 @@ ${resumeContent}`;
     try {
       analysis = JSON.parse(text);
     } catch {
-      // If Claude didn't return valid JSON, try to extract it
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         analysis = JSON.parse(jsonMatch[0]);
@@ -140,14 +135,13 @@ ${resumeContent}`;
       }
     }
 
-    // Update usage count
     await store.setJSON(rateLimitKey, { count: dailyCount + 1, date: today });
 
     return new Response(
       JSON.stringify({
         analysis,
-        remaining: isPro ? 999 : FREE_DAILY_LIMIT - dailyCount - 1,
-        isPro,
+        remaining: dailyLimit - dailyCount - 1,
+        tier,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
@@ -160,29 +154,28 @@ ${resumeContent}`;
   }
 };
 
-async function checkProStatus(authHeader: string): Promise<boolean> {
+async function checkTier(authHeader: string): Promise<string> {
   try {
     const token = authHeader.replace("Bearer ", "");
     const supabaseUrl = Netlify.env.get("SUPABASE_URL");
     const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey) return false;
-
+    if (!supabaseUrl || !supabaseServiceKey) return "free";
     const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: { Authorization: `Bearer ${token}`, apikey: supabaseServiceKey },
     });
-    if (!userRes.ok) return false;
+    if (!userRes.ok) return "free";
     const user = await userRes.json();
-
     const profileRes = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro,tier`,
       { headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` } }
     );
-    if (!profileRes.ok) return false;
+    if (!profileRes.ok) return "free";
     const profiles = await profileRes.json();
-    return profiles.length > 0 && profiles[0].is_pro;
-  } catch {
-    return false;
-  }
+    if (profiles.length === 0) return "free";
+    const p = profiles[0];
+    if (p.tier) return p.tier;
+    return p.is_pro ? "pro" : "free";
+  } catch { return "free"; }
 }
 
 async function hashIp(ip: string): Promise<string> {

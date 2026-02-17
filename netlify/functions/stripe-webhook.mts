@@ -47,8 +47,24 @@ export default async (req: Request, context: Context) => {
       const stripeCustomerId = session.customer;
       const subscriptionId = session.subscription;
 
+      // Determine tier from subscription metadata
+      let tier = "pro";
+      if (subscriptionId && stripeKey) {
+        try {
+          const subRes = await fetch(
+            `https://api.stripe.com/v1/subscriptions/${subscriptionId}`,
+            { headers: { Authorization: `Bearer ${stripeKey}` } }
+          );
+          if (subRes.ok) {
+            const sub = await subRes.json();
+            tier = sub.metadata?.plan || "pro";
+          }
+        } catch (e) {
+          console.error("Failed to fetch subscription metadata:", e);
+        }
+      }
+
       if (customerEmail) {
-        // Update profile to Pro
         const res = await fetch(
           `${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(customerEmail)}`,
           {
@@ -61,13 +77,14 @@ export default async (req: Request, context: Context) => {
             },
             body: JSON.stringify({
               is_pro: true,
+              tier,
               stripe_customer_id: stripeCustomerId,
               stripe_subscription_id: subscriptionId,
               updated_at: new Date().toISOString(),
             }),
           }
         );
-        console.log("Profile update response:", res.status);
+        console.log(`Profile updated to tier=${tier}, status=${res.status}`);
       }
     }
 
@@ -89,6 +106,7 @@ export default async (req: Request, context: Context) => {
           },
           body: JSON.stringify({
             is_pro: false,
+            tier: "free",
             stripe_subscription_id: null,
             updated_at: new Date().toISOString(),
           }),

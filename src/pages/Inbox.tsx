@@ -19,7 +19,7 @@ interface Message {
 }
 
 export default function Inbox() {
-  const { user, session } = useAuth()
+  const { user, session, isPro } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
 
@@ -168,6 +168,22 @@ export default function Inbox() {
           <button className="generate-btn" onClick={() => setAuthOpen(true)} style={{ maxWidth: 300 }}>Sign In</button>
         </div>
         <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+      </div>
+    )
+  }
+
+  if (!isPro) {
+    return (
+      <div className="app-container">
+        <nav className="app-nav">
+          <Link className="logo" to="/"><span className="logo-icon">&#9670;</span><span className="logo-text">ResumeAI</span></Link>
+        </nav>
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>&#128274;</div>
+          <h2 className="form-title">Career Inbox is a Pro Feature</h2>
+          <p className="form-sub">Upgrade to Pro or Max to get a dedicated email address for your job applications and keep all correspondence in one place.</p>
+          <button className="generate-btn" onClick={() => navigate('/#pricing-anchor')} style={{ maxWidth: 300 }}>View Plans</button>
+        </div>
       </div>
     )
   }

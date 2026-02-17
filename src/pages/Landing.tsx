@@ -85,16 +85,20 @@ export default function Landing() {
 
       <div className="pricing" id="pricing-anchor">
         <h2 className="section-title">Simple Pricing</h2>
-        <div className="pricing-cards">
+        <div className="pricing-cards" style={{ maxWidth: 960 }}>
           <div className="pricing-card">
             <div className="pricing-tier">Free</div>
             <div className="pricing-price">$0<span className="pricing-period">/forever</span></div>
             <ul className="pricing-list">
-              <li className="pricing-item">&#10003; 3 resume generations per day</li>
+              <li className="pricing-item">&#10003; 3 resume generations/day</li>
               <li className="pricing-item">&#10003; AI resume parsing</li>
-              <li className="pricing-item">&#10003; 5 job searches per day</li>
+              <li className="pricing-item">&#10003; 5 job searches/day</li>
+              <li className="pricing-item">&#10003; 1 ATS check/day</li>
+              <li className="pricing-item">&#10003; 1 interview prep/day</li>
               <li className="pricing-item">&#10003; Application tracker</li>
-              <li className="pricing-item">&#10003; Career inbox</li>
+              <li className="pricing-item" style={{ color: 'var(--text-muted)', textDecoration: 'line-through' }}>&#10007; Export to DOCX &amp; PDF</li>
+              <li className="pricing-item" style={{ color: 'var(--text-muted)', textDecoration: 'line-through' }}>&#10007; Career inbox</li>
+              <li className="pricing-item" style={{ color: 'var(--text-muted)', textDecoration: 'line-through' }}>&#10007; Job alerts</li>
             </ul>
             <button className="pricing-btn" onClick={() => navigate('/onboard')}>Start Free</button>
           </div>
@@ -103,14 +107,33 @@ export default function Landing() {
             <div className="pricing-tier">Pro</div>
             <div className="pricing-price">$9<span className="pricing-period">/month</span></div>
             <ul className="pricing-list">
-              <li className="pricing-item">&#10003; Unlimited generations</li>
-              <li className="pricing-item">&#10003; Unlimited job search &amp; tailoring</li>
+              <li className="pricing-item">&#10003; 10 resume generations/day</li>
+              <li className="pricing-item">&#10003; 25 job searches/day</li>
+              <li className="pricing-item">&#10003; 5 resume tailors/day</li>
+              <li className="pricing-item">&#10003; 5 ATS checks/day</li>
+              <li className="pricing-item">&#10003; 5 interview preps/day</li>
               <li className="pricing-item">&#10003; Export to DOCX &amp; PDF</li>
-              <li className="pricing-item">&#10003; ATS score analysis</li>
-              <li className="pricing-item">&#10003; Unlimited interview prep</li>
-              <li className="pricing-item">&#10003; Job alerts (weekly/monthly)</li>
+              <li className="pricing-item">&#10003; Career inbox &amp; email</li>
+              <li className="pricing-item">&#10003; Weekly/monthly job alerts</li>
             </ul>
-            <button className="pricing-btn pro-btn" onClick={() => navigate('/onboard?upgrade=true')}>Upgrade to Pro</button>
+            <button className="pricing-btn pro-btn" onClick={() => navigate('/onboard?upgrade=pro')}>Upgrade to Pro</button>
+          </div>
+          <div className="pricing-card" style={{ border: '1.5px solid var(--accent)', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', fontSize: 11, fontWeight: 700, padding: '3px 14px', borderRadius: 20, letterSpacing: 0.5 }}>MAX POWER</div>
+            <div className="pricing-tier">Max</div>
+            <div className="pricing-price">$19<span className="pricing-period">/month</span></div>
+            <ul className="pricing-list">
+              <li className="pricing-item">&#10003; <strong>Unlimited</strong> resume generations</li>
+              <li className="pricing-item">&#10003; <strong>Unlimited</strong> job searches</li>
+              <li className="pricing-item">&#10003; <strong>Unlimited</strong> resume tailoring</li>
+              <li className="pricing-item">&#10003; <strong>Unlimited</strong> ATS checks</li>
+              <li className="pricing-item">&#10003; <strong>Unlimited</strong> interview prep</li>
+              <li className="pricing-item">&#10003; Export to DOCX &amp; PDF</li>
+              <li className="pricing-item">&#10003; Career inbox &amp; email</li>
+              <li className="pricing-item">&#10003; Daily job alerts</li>
+              <li className="pricing-item">&#10003; Priority AI processing</li>
+            </ul>
+            <button className="pricing-btn pro-btn" onClick={() => navigate('/onboard?upgrade=max')}>Go Max</button>
           </div>
         </div>
       </div>

@@ -36,6 +36,21 @@ export default async (req: Request, context: Context) => {
     if (!userRes.ok) throw new Error("Invalid token");
     const user = await userRes.json();
 
+    // ---- TIER CHECK: Pro+ only ----
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro,tier`,
+      { headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` } }
+    );
+    const profiles = profileRes.ok ? await profileRes.json() : [];
+    const p = profiles[0];
+    const tier = p?.tier || (p?.is_pro ? "pro" : "free");
+    if (tier === "free") {
+      return new Response(
+        JSON.stringify({ error: "Career Inbox requires a Pro or Max plan.", tier }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     // Check if already provisioned
     const checkRes = await fetch(
       `${supabaseUrl}/rest/v1/user_emails?user_id=eq.${user.id}&select=email_address`,

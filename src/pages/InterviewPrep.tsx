@@ -15,7 +15,7 @@ interface PrepResult {
 }
 
 export default function InterviewPrep() {
-  const { user, isPro } = useAuth()
+  const { user, isPro, tier } = useAuth()
   const { showToast } = useToast()
   const [searchParams] = useSearchParams()
 
@@ -95,7 +95,8 @@ export default function InterviewPrep() {
 
       <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
         <h2 className="form-title" style={{ marginTop: 8 }}>&#127891; Interview Prep</h2>
-        <p className="form-sub">AI-generated interview preparation with company research, question banks, and tips.{!isPro && ' (1 free/day)'}</p>
+        <p className="form-sub">AI-generated interview preparation with company research, question banks, and tips.
+          {tier === 'free' && ' (1 free/day)'}{tier === 'pro' && ' (5/day)'}{tier === 'max' && ' (Unlimited)'}</p>
 
         {/* Input Form */}
         {!result && !loading && (
