@@ -28,13 +28,28 @@ export default function Landing() {
       <div className="features">
         <div className="feature-card">
           <div className="feature-icon">&#9889;</div>
-          <div className="feature-title">30-Second Generation</div>
-          <div className="feature-desc">Paste a job description and your experience — get a polished document instantly.</div>
+          <div className="feature-title">AI Resume Builder</div>
+          <div className="feature-desc">Generate tailored resumes and cover letters in seconds. Export to DOCX or PDF.</div>
+        </div>
+        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/jobs')}>
+          <div className="feature-icon">&#128269;</div>
+          <div className="feature-title">Smart Job Search</div>
+          <div className="feature-desc">Search thousands of listings. AI matches jobs to your skills and experience.</div>
+        </div>
+        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/tracker')}>
+          <div className="feature-icon">&#128203;</div>
+          <div className="feature-title">Application Tracker</div>
+          <div className="feature-desc">Kanban board to track every application from saved to offer.</div>
         </div>
         <div className="feature-card">
           <div className="feature-icon">&#127919;</div>
-          <div className="feature-title">ATS Optimized</div>
-          <div className="feature-desc">Keyword-matched formatting that passes applicant tracking systems.</div>
+          <div className="feature-title">ATS Score Checker</div>
+          <div className="feature-desc">Analyze your resume against any job. Get keyword matches and improvement tips.</div>
+        </div>
+        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/interview')}>
+          <div className="feature-icon">&#127891;</div>
+          <div className="feature-title">Interview Prep</div>
+          <div className="feature-desc">AI-generated questions, company briefs, and salary negotiation tips.</div>
         </div>
         <div className="feature-card">
           <div className="feature-icon">&#10024;</div>
