@@ -1055,13 +1055,19 @@
     const btn = document.getElementById('login-btn');
     btn.textContent = 'Logging in...'; btn.disabled = true;
 
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    btn.textContent = 'Log In'; btn.disabled = false;
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      btn.textContent = 'Log In'; btn.disabled = false;
 
-    if (error) { showAuthError(error.message); return; }
-    closeAuth();
-    await loadUserProfile();
-    showApp();
+      if (error) { showAuthError(error.message); return; }
+      closeAuth();
+      await loadUserProfile();
+      showApp();
+    } catch (err) {
+      btn.textContent = 'Log In'; btn.disabled = false;
+      showAuthError('Something went wrong. Please try again.');
+      console.error('Login error:', err);
+    }
   }
 
   async function handleSignup() {
@@ -1074,28 +1080,39 @@
     const btn = document.getElementById('signup-btn');
     btn.textContent = 'Creating account...'; btn.disabled = true;
 
-    const { data, error } = await sb.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: name } }
-    });
-    btn.textContent = 'Create Account'; btn.disabled = false;
+    try {
+      const { data, error } = await sb.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } }
+      });
+      btn.textContent = 'Create Account'; btn.disabled = false;
 
-    if (error) { showAuthError(error.message); return; }
+      if (error) { showAuthError(error.message); return; }
 
-    // If user is immediately signed in (no email confirmation)
-    if (data.session) {
-      closeAuth();
-      // Small delay for database trigger to create profile
-      await new Promise(r => setTimeout(r, 1000));
-      await loadUserProfile();
-      showApp();
-    } else {
-      closeAuth();
-      const toast = document.getElementById('toast');
-      toast.textContent = 'Check your email to confirm your account!';
-      toast.classList.add('show');
-      setTimeout(() => { toast.classList.remove('show'); toast.textContent = 'Copied to clipboard!'; }, 4000);
+      // If user is immediately signed in (no email confirmation)
+      if (data.session) {
+        closeAuth();
+        // Small delay for database trigger to create profile
+        await new Promise(r => setTimeout(r, 1500));
+        await loadUserProfile();
+        showApp();
+      } else if (data.user && !data.session) {
+        // Supabase returns user but no session when:
+        // 1) Email confirmation is required, OR
+        // 2) User already exists (returns fake user to prevent email enumeration)
+        closeAuth();
+        const toast = document.getElementById('toast');
+        toast.textContent = 'Check your email to confirm your account, or log in if you already have one!';
+        toast.classList.add('show');
+        setTimeout(() => { toast.classList.remove('show'); toast.textContent = 'Copied to clipboard!'; }, 5000);
+      } else {
+        showAuthError('Something went wrong. Please try again.');
+      }
+    } catch (err) {
+      btn.textContent = 'Create Account'; btn.disabled = false;
+      showAuthError('Something went wrong. Please try again.');
+      console.error('Signup error:', err);
     }
   }
 
