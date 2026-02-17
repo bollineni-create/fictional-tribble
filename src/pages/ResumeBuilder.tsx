@@ -36,6 +36,13 @@ export default function ResumeBuilder() {
   const [resultContent, setResultContent] = useState('')
   const [error, setError] = useState('')
 
+  // ATS Score
+  const [atsScore, setAtsScore] = useState<any>(null)
+  const [atsLoading, setAtsLoading] = useState(false)
+
+  // Export loading
+  const [exportLoading, setExportLoading] = useState(false)
+
   // Usage
   const [usageCount, setUsageCount] = useState(0)
 
@@ -194,6 +201,115 @@ export default function ResumeBuilder() {
     setActiveTab(tab)
   }
 
+  const exportDocx = async () => {
+    if (!isPro) { setUpgradeOpen(true); return }
+    setExportLoading(true)
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      try {
+        const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
+        if (s) headers['Authorization'] = 'Bearer ' + s.access_token
+      } catch {}
+
+      const res = await fetch('/api/export-docx', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          content: resultContent,
+          title: jobTitle.trim() || 'Resume',
+          type: activeTab,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Export failed')
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = activeTab === 'coverLetter' ? 'cover-letter.docx' : 'resume.docx'
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast('DOCX downloaded!')
+    } catch (err: any) {
+      showToast(err.message || 'Export failed')
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  const exportPdf = async () => {
+    if (!isPro) { setUpgradeOpen(true); return }
+    setExportLoading(true)
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      try {
+        const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
+        if (s) headers['Authorization'] = 'Bearer ' + s.access_token
+      } catch {}
+
+      const res = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          content: resultContent,
+          title: jobTitle.trim() || 'Resume',
+          type: activeTab,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Export failed')
+      }
+
+      const data = await res.json()
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(data.html)
+        printWindow.document.close()
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Export failed')
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  const checkAtsScore = async () => {
+    if (!resultContent) return
+    setAtsLoading(true)
+    setAtsScore(null)
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      try {
+        const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
+        if (s) headers['Authorization'] = 'Bearer ' + s.access_token
+      } catch {}
+
+      const res = await fetch('/api/ats-score', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          resumeContent: resultContent,
+          jobDescription: jobDescription.trim() || undefined,
+        }),
+      })
+
+      const data = await res.json()
+      if (data.limitReached) { setUpgradeOpen(true); return }
+      if (!res.ok || data.error) throw new Error(data.error || 'Analysis failed')
+      setAtsScore(data.analysis)
+    } catch (err: any) {
+      showToast(err.message || 'ATS check failed')
+    } finally {
+      setAtsLoading(false)
+    }
+  }
+
   const buttonText = () => {
     if (!isPro && remaining <= 0) return '\uD83D\uDD12 Upgrade to Pro for More'
     return activeTab === 'resume' ? '\u2726 Generate Resume' : '\u2726 Generate Cover Letter'
@@ -304,7 +420,12 @@ export default function ResumeBuilder() {
             <div className="result-actions">
               {user && <button className="save-btn" onClick={saveResume}>&#128190; Save</button>}
               <button className="copy-btn" onClick={copyResult}>&#128203; Copy</button>
-              <button className="pro-export-btn" onClick={() => setUpgradeOpen(true)}>&#11015; Export DOCX (Pro)</button>
+              <button className="pro-export-btn" onClick={exportDocx} disabled={exportLoading}>
+                {exportLoading ? '...' : '&#11015; DOCX'} {!isPro && '(Pro)'}
+              </button>
+              <button className="pro-export-btn" onClick={exportPdf} disabled={exportLoading}>
+                {exportLoading ? '...' : '&#128196;'} PDF {!isPro && '(Pro)'}
+              </button>
             </div>
           </div>
           <div className="result-box">
@@ -319,6 +440,93 @@ export default function ResumeBuilder() {
           <button className="retry-btn" onClick={() => setView('form')}>&#128260; Not what you expected? Edit &amp; Try Again</button>
           <div className="retry-tip">
             &#128161; <strong>Tip:</strong> For the best results, include specific details — job titles, company names, years of experience, measurable achievements, and the actual job description from the posting.
+          </div>
+
+          {/* ATS Score Section */}
+          <div style={{ marginTop: 24 }}>
+            <button
+              className="generate-btn"
+              onClick={checkAtsScore}
+              disabled={atsLoading}
+              style={{ background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+            >
+              {atsLoading ? 'Analyzing...' : `&#127919; Check ATS Score${!isPro ? ' (1 free/day)' : ''}`}
+            </button>
+
+            {atsScore && (
+              <div style={{ marginTop: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                  <div style={{
+                    width: 64, height: 64, borderRadius: '50%',
+                    background: atsScore.score >= 80 ? 'rgba(92, 184, 92, 0.15)' : atsScore.score >= 60 ? 'var(--accent-glow)' : 'rgba(212, 85, 74, 0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 24, fontWeight: 700,
+                    color: atsScore.score >= 80 ? 'var(--green)' : atsScore.score >= 60 ? 'var(--accent)' : 'var(--error)',
+                  }}>
+                    {atsScore.score}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: 'var(--display)', fontSize: 20, fontWeight: 700, color: 'var(--white)' }}>
+                      ATS Compatibility Score
+                    </div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{atsScore.summary}</div>
+                  </div>
+                </div>
+
+                {/* Sub-scores */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+                  {[
+                    { label: 'Keyword Match', score: atsScore.keywordMatch?.score },
+                    { label: 'Formatting', score: atsScore.formatting?.score },
+                    { label: 'Sections', score: atsScore.sections?.score },
+                  ].map((item) => (
+                    <div key={item.label} style={{
+                      background: 'var(--bg)', borderRadius: 10, padding: '12px 16px',
+                      border: '1px solid var(--border)',
+                    }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{item.label}</div>
+                      <div style={{
+                        fontSize: 20, fontWeight: 700,
+                        color: (item.score ?? 0) >= 80 ? 'var(--green)' : (item.score ?? 0) >= 60 ? 'var(--accent)' : 'var(--error)',
+                      }}>
+                        {item.score ?? 'N/A'}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Missing keywords */}
+                {atsScore.keywordMatch?.missing?.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>MISSING KEYWORDS</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {atsScore.keywordMatch.missing.map((kw: string) => (
+                        <span key={kw} style={{
+                          background: 'rgba(212, 85, 74, 0.1)', color: 'var(--error)',
+                          padding: '3px 10px', borderRadius: 6, fontSize: 13,
+                          border: '1px solid rgba(212, 85, 74, 0.2)',
+                        }}>{kw}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Improvements */}
+                {atsScore.improvements?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>SUGGESTIONS</div>
+                    {atsScore.improvements.map((s: string, i: number) => (
+                      <div key={i} style={{
+                        fontSize: 14, color: 'var(--text)', padding: '6px 0',
+                        borderBottom: i < atsScore.improvements.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}>
+                        &#8226; {s}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
