@@ -12,6 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
   <script src="https://js.stripe.com/v3/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -359,6 +360,68 @@
       overflow-y: auto;
       background: #fff;
     }
+    /* AUTH STYLES */
+    .auth-nav { display: flex; align-items: center; gap: 12px; }
+    .auth-btn {
+      background: transparent; color: var(--text); border: 1px solid var(--border);
+      padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: var(--font); font-size: 14px;
+    }
+    .auth-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .user-menu { display: flex; align-items: center; gap: 10px; }
+    .user-avatar {
+      width: 32px; height: 32px; border-radius: 50%; background: var(--accent);
+      color: #1a1a1a; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px; font-family: var(--font);
+    }
+    .user-dropdown { position: relative; cursor: pointer; }
+    .user-dropdown-menu {
+      display: none; position: absolute; top: 44px; right: 0;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 6px 0; min-width: 180px; z-index: 100; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .user-dropdown-menu.show { display: block; }
+    .user-dropdown-item {
+      display: block; width: 100%; padding: 10px 16px; background: none; border: none;
+      color: var(--text); font-size: 14px; text-align: left; cursor: pointer; font-family: var(--font);
+    }
+    .user-dropdown-item:hover { background: var(--accent-glow); color: var(--accent); }
+    .user-dropdown-item.pro-badge { color: var(--accent); font-weight: 600; }
+    .auth-tabs { display: flex; gap: 0; margin-bottom: 24px; }
+    .auth-tab {
+      flex: 1; padding: 10px; background: transparent; border: 1px solid var(--border);
+      color: var(--text-muted); font-family: var(--font); font-size: 14px; cursor: pointer;
+    }
+    .auth-tab:first-child { border-radius: 8px 0 0 8px; }
+    .auth-tab:last-child { border-radius: 0 8px 8px 0; }
+    .auth-tab.active { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
+    .auth-input {
+      width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 14px; font-family: var(--font);
+      margin-bottom: 12px; box-sizing: border-box;
+    }
+    .auth-input:focus { outline: none; border-color: var(--accent); }
+    .auth-error { color: #ff6b6b; font-size: 13px; margin-bottom: 12px; display: none; }
+    .saved-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; }
+    .saved-card {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; cursor: pointer; transition: border-color 0.2s;
+    }
+    .saved-card:hover { border-color: var(--accent); }
+    .saved-card-title { font-weight: 600; font-size: 15px; color: var(--text); }
+    .saved-card-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .saved-card-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .saved-card-btn {
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: var(--font);
+    }
+    .saved-card-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .saved-card-btn.delete:hover { color: #ff6b6b; border-color: #ff6b6b; }
+    .save-btn {
+      background: transparent; border: 1px solid var(--accent); color: var(--accent);
+      padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; font-family: var(--font);
+    }
+    .save-btn:hover { background: var(--accent-glow); }
+    .empty-state { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 14px; }
     .modal-close {
       position: absolute; top: 16px; right: 16px; background: none; border: none;
       color: var(--text-muted); font-size: 18px; cursor: pointer;
@@ -422,7 +485,23 @@
       </a>
       <div class="nav-right">
         <a class="nav-link" href="#pricing-anchor">Pricing</a>
-        <button class="nav-cta" onclick="showApp()">Get Started Free</button>
+        <!-- Logged out state -->
+        <div id="nav-guest" class="auth-nav">
+          <button class="auth-btn" onclick="openAuth('login')">Log In</button>
+          <button class="nav-cta" onclick="showApp()">Get Started Free</button>
+        </div>
+        <!-- Logged in state -->
+        <div id="nav-user" class="user-dropdown" style="display:none" onclick="toggleUserMenu()">
+          <div class="user-menu">
+            <div class="user-avatar" id="user-avatar">?</div>
+          </div>
+          <div class="user-dropdown-menu" id="user-dropdown-menu">
+            <div class="user-dropdown-item" style="font-weight:600;cursor:default" id="user-email-display">user@email.com</div>
+            <div id="pro-status-item" class="user-dropdown-item pro-badge" style="display:none">⭐ Pro Member</div>
+            <button class="user-dropdown-item" onclick="openSavedResumes()">📄 My Resumes</button>
+            <button class="user-dropdown-item" onclick="handleLogout()">↩ Log Out</button>
+          </div>
+        </div>
       </div>
     </nav>
 
@@ -581,6 +660,7 @@
       <div class="result-header">
         <h2 class="result-title" id="result-label">📄 Your Tailored Resume</h2>
         <div class="result-actions">
+          <button class="save-btn" id="save-resume-btn" onclick="saveResume()" style="display:none">💾 Save</button>
           <button class="copy-btn" onclick="copyResult()">📋 Copy</button>
           <button class="pro-export-btn" onclick="openUpgrade()">⬇ Export DOCX (Pro)</button>
         </div>
@@ -633,6 +713,44 @@
       <h2 class="modal-title">Welcome to Pro!</h2>
       <p class="modal-desc">Your upgrade is complete. You now have unlimited generations, premium templates, and export features.</p>
       <button class="modal-cta" onclick="closeUpgrade()">Start Creating</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== AUTH MODAL ==================== -->
+<div id="auth-modal" class="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAuth()">✕</button>
+    <div class="modal-icon">🔐</div>
+    <h2 class="modal-title" id="auth-modal-title">Welcome Back</h2>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="auth-tab-login" onclick="switchAuthTab('login')">Log In</button>
+      <button class="auth-tab" id="auth-tab-signup" onclick="switchAuthTab('signup')">Sign Up</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+    <div id="auth-form-login">
+      <input class="auth-input" type="email" id="login-email" placeholder="Email address" />
+      <input class="auth-input" type="password" id="login-password" placeholder="Password" />
+      <button class="modal-cta" onclick="handleLogin()" id="login-btn">Log In</button>
+    </div>
+    <div id="auth-form-signup" style="display:none">
+      <input class="auth-input" type="text" id="signup-name" placeholder="Full name" />
+      <input class="auth-input" type="email" id="signup-email" placeholder="Email address" />
+      <input class="auth-input" type="password" id="signup-password" placeholder="Password (min 6 characters)" />
+      <button class="modal-cta" onclick="handleSignup()" id="signup-btn">Create Account</button>
+    </div>
+    <p class="modal-note" style="margin-top:16px">Save your resumes and track your Pro subscription</p>
+  </div>
+</div>
+
+<!-- ==================== SAVED RESUMES MODAL ==================== -->
+<div id="saved-modal" class="modal-overlay">
+  <div class="modal" style="max-width:550px">
+    <button class="modal-close" onclick="closeSaved()">✕</button>
+    <div class="modal-icon">📄</div>
+    <h2 class="modal-title">My Saved Resumes</h2>
+    <div id="saved-list" class="saved-list">
+      <div class="empty-state">Loading...</div>
     </div>
   </div>
 </div>
@@ -730,9 +848,16 @@
       `Crafting your ${activeTab === 'resume' ? 'resume' : 'cover letter'}...`;
 
     try {
+      // Build headers, include auth token if logged in
+      const headers = { 'Content-Type': 'application/json' };
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        headers['Authorization'] = 'Bearer ' + session.access_token;
+      }
+
       const res = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           type: activeTab,
           jobTitle,
@@ -832,7 +957,7 @@
 
   // ---- STRIPE EMBEDDED CHECKOUT ----
   // IMPORTANT: Replace this with your Stripe Publishable Key
-  const STRIPE_PK = 'pk_live_51T1fqEFyD3IgcpECoSOIFPs59HLLvC7udSHohLA45WWYc8TW5nSqFCTG04uORZYBlgUoF8UkobWT2KR1KBwSOYUe00maxfwAsS';
+  const STRIPE_PK = 'pk_live_REPLACE_WITH_YOUR_PUBLISHABLE_KEY';
   let stripeInstance = null;
   let checkoutInstance = null;
 
@@ -890,6 +1015,261 @@
   // ---- INIT ----
   usageCount = getUsage();
   updateUsageUI();
+
+  // ---- SUPABASE ----
+  const SUPABASE_URL = 'https://agvhbkrtsgqkritdzagy.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_vbXQpODYjGPvH1StLDZhlg_hCyWY9km';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let currentUser = null;
+  let userProfile = null;
+
+  // ---- AUTH UI ----
+  function openAuth(tab) {
+    document.getElementById('auth-modal').classList.add('open');
+    switchAuthTab(tab || 'login');
+  }
+  function closeAuth() {
+    document.getElementById('auth-modal').classList.remove('open');
+    document.getElementById('auth-error').style.display = 'none';
+  }
+  function switchAuthTab(tab) {
+    document.getElementById('auth-tab-login').className = 'auth-tab' + (tab === 'login' ? ' active' : '');
+    document.getElementById('auth-tab-signup').className = 'auth-tab' + (tab === 'signup' ? ' active' : '');
+    document.getElementById('auth-form-login').style.display = tab === 'login' ? '' : 'none';
+    document.getElementById('auth-form-signup').style.display = tab === 'signup' ? '' : 'none';
+    document.getElementById('auth-modal-title').textContent = tab === 'login' ? 'Welcome Back' : 'Create Account';
+    document.getElementById('auth-error').style.display = 'none';
+  }
+  function showAuthError(msg) {
+    const el = document.getElementById('auth-error');
+    el.textContent = msg;
+    el.style.display = '';
+  }
+
+  // ---- AUTH ACTIONS ----
+  async function handleLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!email || !password) { showAuthError('Please fill in all fields'); return; }
+
+    const btn = document.getElementById('login-btn');
+    btn.textContent = 'Logging in...'; btn.disabled = true;
+
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    btn.textContent = 'Log In'; btn.disabled = false;
+
+    if (error) { showAuthError(error.message); return; }
+    closeAuth();
+    await loadUserProfile();
+  }
+
+  async function handleSignup() {
+    const name = document.getElementById('signup-name').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
+    const password = document.getElementById('signup-password').value;
+    if (!name || !email || !password) { showAuthError('Please fill in all fields'); return; }
+    if (password.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
+
+    const btn = document.getElementById('signup-btn');
+    btn.textContent = 'Creating account...'; btn.disabled = true;
+
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name } }
+    });
+    btn.textContent = 'Create Account'; btn.disabled = false;
+
+    if (error) { showAuthError(error.message); return; }
+    closeAuth();
+
+    // Show confirmation message
+    const toast = document.getElementById('toast');
+    toast.textContent = 'Check your email to confirm your account!';
+    toast.classList.add('show');
+    setTimeout(() => { toast.classList.remove('show'); toast.textContent = 'Copied to clipboard!'; }, 4000);
+  }
+
+  async function handleLogout() {
+    await sb.auth.signOut();
+    currentUser = null;
+    userProfile = null;
+    updateAuthUI();
+    closeUserMenu();
+  }
+
+  // ---- USER MENU ----
+  function toggleUserMenu() {
+    document.getElementById('user-dropdown-menu').classList.toggle('show');
+  }
+  function closeUserMenu() {
+    document.getElementById('user-dropdown-menu').classList.remove('show');
+  }
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.user-dropdown')) closeUserMenu();
+  });
+
+  // ---- AUTH STATE ----
+  async function loadUserProfile() {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) { currentUser = null; userProfile = null; updateAuthUI(); return; }
+
+    currentUser = user;
+    const { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).single();
+    userProfile = profile;
+    updateAuthUI();
+  }
+
+  function updateAuthUI() {
+    const guest = document.getElementById('nav-guest');
+    const userNav = document.getElementById('nav-user');
+    const saveBtn = document.getElementById('save-resume-btn');
+
+    if (currentUser) {
+      guest.style.display = 'none';
+      userNav.style.display = '';
+      const initial = (currentUser.email || '?')[0].toUpperCase();
+      document.getElementById('user-avatar').textContent = initial;
+      document.getElementById('user-email-display').textContent = currentUser.email;
+      if (saveBtn) saveBtn.style.display = '';
+
+      // Show Pro status
+      const proItem = document.getElementById('pro-status-item');
+      if (userProfile && userProfile.is_pro) {
+        proItem.style.display = '';
+      } else {
+        proItem.style.display = 'none';
+      }
+    } else {
+      guest.style.display = '';
+      userNav.style.display = 'none';
+      if (saveBtn) saveBtn.style.display = 'none';
+    }
+  }
+
+  // Listen for auth changes
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN') {
+      await loadUserProfile();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      userProfile = null;
+      updateAuthUI();
+    }
+  });
+
+  // ---- SAVE RESUMES ----
+  async function saveResume() {
+    if (!currentUser) { openAuth('signup'); return; }
+    if (!resultContent) return;
+
+    const jobTitle = document.getElementById('jobTitle').value.trim();
+    const company = document.getElementById('company').value.trim();
+    const title = company ? `${jobTitle} — ${company}` : jobTitle;
+
+    const { error } = await sb.from('saved_resumes').insert({
+      user_id: currentUser.id,
+      title: title || 'Untitled Resume',
+      type: activeTab,
+      content: resultContent,
+      job_title: jobTitle,
+      company: company,
+    });
+
+    const toast = document.getElementById('toast');
+    if (error) {
+      toast.textContent = 'Failed to save. Please try again.';
+    } else {
+      toast.textContent = 'Resume saved!';
+    }
+    toast.classList.add('show');
+    setTimeout(() => { toast.classList.remove('show'); toast.textContent = 'Copied to clipboard!'; }, 2000);
+  }
+
+  // ---- SAVED RESUMES MODAL ----
+  function openSavedResumes() {
+    closeUserMenu();
+    document.getElementById('saved-modal').classList.add('open');
+    loadSavedResumes();
+  }
+  function closeSaved() {
+    document.getElementById('saved-modal').classList.remove('open');
+  }
+  document.getElementById('saved-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeSaved();
+  });
+  document.getElementById('auth-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeAuth();
+  });
+
+  async function loadSavedResumes() {
+    const container = document.getElementById('saved-list');
+    container.innerHTML = '<div class="empty-state">Loading...</div>';
+
+    const { data, error } = await sb
+      .from('saved_resumes')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) {
+      container.innerHTML = '<div class="empty-state">No saved resumes yet. Generate one and click 💾 Save!</div>';
+      return;
+    }
+
+    container.innerHTML = data.map(r => `
+      <div class="saved-card">
+        <div class="saved-card-title">${escapeHtml(r.title)}</div>
+        <div class="saved-card-meta">${r.type === 'resume' ? '📄 Resume' : '✉️ Cover Letter'} · ${new Date(r.created_at).toLocaleDateString()}</div>
+        <div class="saved-card-actions">
+          <button class="saved-card-btn" onclick="viewSavedResume('${r.id}')">View</button>
+          <button class="saved-card-btn" onclick="copySavedResume('${r.id}')">Copy</button>
+          <button class="saved-card-btn delete" onclick="deleteSavedResume('${r.id}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+
+    // Store data for quick access
+    window._savedResumes = data;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function viewSavedResume(id) {
+    const resume = (window._savedResumes || []).find(r => r.id === id);
+    if (!resume) return;
+    closeSaved();
+    resultContent = resume.content;
+    document.getElementById('result-text').textContent = resultContent;
+    document.getElementById('result-label').textContent =
+      resume.type === 'resume' ? '📄 Your Tailored Resume' : '✉️ Your Cover Letter';
+    showSection('app');
+    showView('result');
+  }
+
+  function copySavedResume(id) {
+    const resume = (window._savedResumes || []).find(r => r.id === id);
+    if (!resume) return;
+    navigator.clipboard.writeText(resume.content).then(() => {
+      const toast = document.getElementById('toast');
+      toast.textContent = 'Copied to clipboard!';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    });
+  }
+
+  async function deleteSavedResume(id) {
+    if (!confirm('Delete this resume?')) return;
+    await sb.from('saved_resumes').delete().eq('id', id);
+    loadSavedResumes();
+  }
+
+  // ---- INIT AUTH ----
+  loadUserProfile();
 </script>
 </body>
 </html>
