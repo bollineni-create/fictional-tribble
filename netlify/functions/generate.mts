@@ -65,6 +65,47 @@ export default async (req: Request, context: Context) => {
     }
   }
 
+  // ---- CHECK PRO STATUS ----
+  let isPro = false;
+  const authHeader = req.headers.get("authorization");
+  if (authHeader) {
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const supabaseUrl = Netlify.env.get("SUPABASE_URL");
+      const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+      if (supabaseUrl && supabaseServiceKey) {
+        // Verify token and get user
+        const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+          headers: { "Authorization": `Bearer ${token}`, "apikey": supabaseServiceKey },
+        });
+
+        if (userRes.ok) {
+          const user = await userRes.json();
+          // Check profile for Pro status
+          const profileRes = await fetch(
+            `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro`,
+            {
+              headers: {
+                "apikey": supabaseServiceKey,
+                "Authorization": `Bearer ${supabaseServiceKey}`,
+              },
+            }
+          );
+          if (profileRes.ok) {
+            const profiles = await profileRes.json();
+            if (profiles.length > 0 && profiles[0].is_pro) {
+              isPro = true;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Pro check error:", err);
+      // Continue as free user if check fails
+    }
+  }
+
   // ---- SERVER-SIDE RATE LIMITING ----
   const clientIp = context.ip || req.headers.get("x-forwarded-for") || "unknown";
   const ipHash = await hashIp(clientIp);
@@ -94,11 +135,11 @@ export default async (req: Request, context: Context) => {
       await store.setJSON(minuteKey, { count: 1, timestamp: Date.now() });
     }
 
-    // Check daily free limit
+    // Check daily free limit (skip for Pro users)
     const dailyData = await store.get(rateLimitKey, { type: "json" });
     const dailyCount = dailyData?.count || 0;
 
-    if (dailyCount >= FREE_DAILY_LIMIT) {
+    if (!isPro && dailyCount >= FREE_DAILY_LIMIT) {
       return new Response(
         JSON.stringify({
           error: "You've reached your 3 free daily generations. Upgrade to Pro for unlimited access!",
@@ -166,7 +207,11 @@ My Education: ${education || "Not provided"}`;
     await store.setJSON(rateLimitKey, { count: dailyCount + 1, date: today });
 
     return new Response(
-      JSON.stringify({ result: text, remaining: FREE_DAILY_LIMIT - dailyCount - 1 }),
+      JSON.stringify({
+        result: text,
+        remaining: isPro ? 999 : FREE_DAILY_LIMIT - dailyCount - 1,
+        isPro,
+      }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (err) {
@@ -190,4 +235,3 @@ async function hashIp(ip: string): Promise<string> {
 export const config: Config = {
   path: "/api/generate",
 };
-
