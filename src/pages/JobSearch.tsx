@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
 import { useToast } from '../components/Toast'
@@ -19,11 +19,13 @@ interface Job {
   source: string
   postedAt: string
   employmentType: string
+  matchScore?: number
 }
 
 export default function JobSearch() {
   const { user, isPro } = useAuth()
   const { showToast } = useToast()
+  const navigate = useNavigate()
 
   const [query, setQuery] = useState('')
   const [location, setLocation] = useState('')
@@ -36,6 +38,36 @@ export default function JobSearch() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [remaining, setRemaining] = useState<number | null>(null)
+  const [sortBy, setSortBy] = useState<'match' | 'date'>('match')
+
+  // User profile for match scoring
+  const [userSkills, setUserSkills] = useState<string[]>([])
+  const [desiredTitle, setDesiredTitle] = useState('')
+  const [desiredLocation, setDesiredLocation] = useState('')
+  const [hasProfile, setHasProfile] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+    loadUserProfile()
+  }, [user])
+
+  const loadUserProfile = async () => {
+    if (!user) return
+    try {
+      const result = await withTimeout(
+        Promise.resolve(
+          supabase.from('user_profiles_extended').select('skills,preferences,location').eq('user_id', user.id).single()
+        ), 8000
+      )
+      if (result.data) {
+        const d = result.data as any
+        setUserSkills(d.skills || [])
+        setDesiredLocation(d.preferences?.desiredLocation || d.location || '')
+        setDesiredTitle(d.preferences?.desiredTitle || '')
+        setHasProfile(true)
+      }
+    } catch {}
+  }
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -61,6 +93,9 @@ export default function JobSearch() {
           location: location.trim() || undefined,
           remote: remoteOnly || undefined,
           page: pageNum,
+          userSkills: userSkills.length > 0 ? userSkills : undefined,
+          desiredTitle: desiredTitle || query.trim(),
+          desiredLocation: desiredLocation || location.trim(),
         }),
       })
 
@@ -68,7 +103,14 @@ export default function JobSearch() {
       if (data.limitReached) { setUpgradeOpen(true); return }
       if (!res.ok || data.error) throw new Error(data.error || 'Search failed')
 
-      setJobs(data.jobs)
+      let results = data.jobs
+      if (sortBy === 'date') {
+        results = [...results].sort((a: Job, b: Job) =>
+          new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime()
+        )
+      }
+
+      setJobs(results)
       setTotalResults(data.totalResults)
       setPage(pageNum)
       setSearched(true)
@@ -89,6 +131,18 @@ export default function JobSearch() {
     return new Date(dateStr).toLocaleDateString()
   }
 
+  const matchColor = (score: number) => {
+    if (score >= 75) return 'var(--green)'
+    if (score >= 50) return 'var(--accent)'
+    return 'var(--error)'
+  }
+
+  const matchBg = (score: number) => {
+    if (score >= 75) return 'rgba(92, 184, 92, 0.12)'
+    if (score >= 50) return 'var(--accent-glow)'
+    return 'rgba(212, 85, 74, 0.1)'
+  }
+
   return (
     <div className="app-container" style={{ maxWidth: 960 }}>
       <nav className="app-nav">
@@ -97,7 +151,7 @@ export default function JobSearch() {
           <span className="logo-text">ResumeAI</span>
         </Link>
         <div style={{ display: 'flex', gap: 12 }}>
-          <Link to="/app" className="nav-link">Resume Builder</Link>
+          <Link to="/onboard" className="nav-link">Resume Builder</Link>
           <Link to="/jobs" className="nav-link" style={{ color: 'var(--accent)' }}>Job Search</Link>
           <Link to="/tracker" className="nav-link">Tracker</Link>
           <Link to="/interview" className="nav-link">Interview Prep</Link>
@@ -106,7 +160,26 @@ export default function JobSearch() {
 
       <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
         <h2 className="form-title" style={{ marginTop: 8 }}>&#128269; Find Your Next Job</h2>
-        <p className="form-sub">Search across thousands of job listings. AI-match with your resume.</p>
+        <p className="form-sub">
+          {hasProfile
+            ? 'Jobs are scored based on your profile. Higher match = better fit.'
+            : 'Search across thousands of job listings. Complete your profile for match scoring.'}
+        </p>
+
+        {!hasProfile && user && (
+          <div style={{
+            background: 'var(--accent-glow)', border: '1px solid var(--accent)',
+            borderRadius: 12, padding: '12px 20px', marginBottom: 20,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <span style={{ fontSize: 14, color: 'var(--text)' }}>
+              &#128161; Complete your profile to see match scores for each job
+            </span>
+            <Link to="/onboard" className="btn-primary" style={{ padding: '6px 16px', fontSize: 13, textDecoration: 'none' }}>
+              Set Up Profile
+            </Link>
+          </div>
+        )}
 
         {/* Search Form */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -131,11 +204,30 @@ export default function JobSearch() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--text-muted)', cursor: 'pointer' }}>
             <input type="checkbox" checked={remoteOnly} onChange={(e) => setRemoteOnly(e.target.checked)} />
             Remote only
           </label>
+          {searched && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setSortBy('match'); searchJobs(page) }} style={{
+                padding: '4px 12px', borderRadius: 6, fontSize: 12, border: '1px solid',
+                cursor: 'pointer', background: sortBy === 'match' ? 'var(--accent)' : 'transparent',
+                color: sortBy === 'match' ? '#000' : 'var(--text-muted)',
+                borderColor: sortBy === 'match' ? 'var(--accent)' : 'var(--border)',
+              }}>Best Match</button>
+              <button onClick={() => {
+                setSortBy('date')
+                setJobs(prev => [...prev].sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime()))
+              }} style={{
+                padding: '4px 12px', borderRadius: 6, fontSize: 12, border: '1px solid',
+                cursor: 'pointer', background: sortBy === 'date' ? 'var(--accent)' : 'transparent',
+                color: sortBy === 'date' ? '#000' : 'var(--text-muted)',
+                borderColor: sortBy === 'date' ? 'var(--accent)' : 'var(--border)',
+              }}>Newest</button>
+            </div>
+          )}
           {remaining !== null && !isPro && (
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               {remaining} search{remaining !== 1 ? 'es' : ''} remaining today
@@ -178,22 +270,32 @@ export default function JobSearch() {
                     <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                       {job.companyLogo && (
                         <img
-                          src={job.companyLogo}
-                          alt=""
+                          src={job.companyLogo} alt=""
                           style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'contain', background: '#fff', padding: 2 }}
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                         />
                       )}
                       <div style={{ flex: 1 }}>
-                        <div className="saved-card-title">{job.title}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div className="saved-card-title">{job.title}</div>
+                          {typeof job.matchScore === 'number' && (
+                            <span style={{
+                              padding: '2px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                              background: matchBg(job.matchScore), color: matchColor(job.matchScore),
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {job.matchScore}% match
+                            </span>
+                          )}
+                        </div>
                         <div className="saved-card-meta">
                           {job.company} &middot; {job.location}
                           {job.isRemote && ' (Remote)'}
-                          {job.salary && ` &middot; ${job.salary}`}
+                          {job.salary && ` · ${job.salary}`}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                           {job.source} &middot; {timeSince(job.postedAt)}
-                          {job.employmentType && ` &middot; ${job.employmentType.replace('_', ' ')}`}
+                          {job.employmentType && ` · ${job.employmentType.replace('_', ' ')}`}
                         </div>
                       </div>
                     </div>
@@ -220,9 +322,19 @@ export default function JobSearch() {
                 borderRadius: 14, padding: 24, maxHeight: '70vh', overflowY: 'auto',
                 position: 'sticky', top: 20,
               }}>
-                <h3 style={{ fontFamily: 'var(--display)', fontSize: 20, fontWeight: 700, color: 'var(--white)', marginBottom: 8 }}>
-                  {selectedJob.title}
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <h3 style={{ fontFamily: 'var(--display)', fontSize: 20, fontWeight: 700, color: 'var(--white)' }}>
+                    {selectedJob.title}
+                  </h3>
+                  {typeof selectedJob.matchScore === 'number' && (
+                    <span style={{
+                      padding: '4px 14px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                      background: matchBg(selectedJob.matchScore), color: matchColor(selectedJob.matchScore),
+                    }}>
+                      {selectedJob.matchScore}%
+                    </span>
+                  )}
+                </div>
                 <p style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 4 }}>
                   {selectedJob.company} &middot; {selectedJob.location}
                 </p>
@@ -237,10 +349,13 @@ export default function JobSearch() {
                       Apply Now &#8599;
                     </a>
                   )}
-                  <Link to={`/app?jobTitle=${encodeURIComponent(selectedJob.title)}&company=${encodeURIComponent(selectedJob.company)}`}
-                    className="pro-export-btn" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
-                    &#10024; Customize Resume
-                  </Link>
+                  <button
+                    className="pro-export-btn"
+                    style={{ display: 'inline-flex', alignItems: 'center' }}
+                    onClick={() => navigate(`/onboard?jobTitle=${encodeURIComponent(selectedJob.title)}&company=${encodeURIComponent(selectedJob.company)}&jobDescription=${encodeURIComponent(selectedJob.description?.substring(0, 3000) || '')}`)}
+                  >
+                    &#10024; Tailor Resume
+                  </button>
                 </div>
 
                 <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>

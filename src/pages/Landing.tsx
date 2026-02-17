@@ -9,52 +9,77 @@ export default function Landing() {
       <Navbar />
 
       <div className="hero">
-        <div className="badge">&#10022; AI-Powered Career Tools</div>
+        <div className="badge">&#10022; Your Complete Career Platform</div>
         <h1 className="hero-title">
-          Land Your Dream Job<br />
-          <span className="hero-accent">With AI Precision</span>
+          Upload. Tailor. Apply.<br />
+          <span className="hero-accent">Land Your Dream Job.</span>
         </h1>
         <p className="hero-sub">
-          Generate tailored resumes and cover letters in seconds.
-          ATS-optimized, professionally written, and personalized to every job you apply for.
+          Upload your resume, and our AI builds a tailored version for every job you apply to.
+          Search jobs, track applications, prep for interviews, and manage all correspondence — all in one place.
         </p>
         <div className="hero-ctas">
-          <button className="btn-primary" onClick={() => navigate('/app')}>Build My Resume — Free</button>
-          <button className="btn-secondary" onClick={() => navigate('/app?tab=coverLetter')}>Write Cover Letter</button>
+          <button className="btn-primary" onClick={() => navigate('/onboard')}>Get Started — Free</button>
+          <button className="btn-secondary" onClick={() => navigate('/jobs')}>Browse Jobs</button>
         </div>
-        <p className="hero-note">3 free generations per day &middot; No sign-up required</p>
+        <p className="hero-note">Upload your resume &middot; AI extracts your info &middot; Tailored for every job</p>
+      </div>
+
+      {/* How It Works */}
+      <div style={{ maxWidth: 800, margin: '0 auto 48px', padding: '0 20px' }}>
+        <h2 className="section-title" style={{ marginBottom: 32 }}>How It Works</h2>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {[
+            { num: '1', icon: '&#128196;', title: 'Upload Resume', desc: 'Upload your PDF or DOCX. AI extracts your experience, skills, and education.' },
+            { num: '2', icon: '&#10024;', title: 'Tailor & Generate', desc: 'Answer a few questions about your target job. Get a polished, uniform resume.' },
+            { num: '3', icon: '&#128269;', title: 'Find & Apply', desc: 'Search jobs with match scoring. Tailor your resume for each listing.' },
+            { num: '4', icon: '&#128236;', title: 'Communicate & Prep', desc: 'Manage correspondence in your career inbox. AI preps you for interviews.' },
+          ].map(step => (
+            <div key={step.num} style={{
+              flex: '1 1 200px', maxWidth: 240, textAlign: 'center',
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 14, padding: 24,
+            }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }} dangerouslySetInnerHTML={{ __html: step.icon }} />
+              <div style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, color: 'var(--white)', marginBottom: 6 }}>
+                {step.title}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>{step.desc}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="features">
-        <div className="feature-card">
+        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/onboard')}>
           <div className="feature-icon">&#9889;</div>
-          <div className="feature-title">AI Resume Builder</div>
-          <div className="feature-desc">Generate tailored resumes and cover letters in seconds. Export to DOCX or PDF.</div>
+          <div className="feature-title">Smart Resume Builder</div>
+          <div className="feature-desc">Upload your resume, AI parses it, ask you questions, and generates a uniform professional document.</div>
         </div>
         <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/jobs')}>
           <div className="feature-icon">&#128269;</div>
-          <div className="feature-title">Smart Job Search</div>
-          <div className="feature-desc">Search thousands of listings. AI matches jobs to your skills and experience.</div>
+          <div className="feature-title">Job Search & Matching</div>
+          <div className="feature-desc">Search thousands of listings. Each job is scored against your profile for the best fit.</div>
         </div>
-        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/tracker')}>
-          <div className="feature-icon">&#128203;</div>
-          <div className="feature-title">Application Tracker</div>
-          <div className="feature-desc">Kanban board to track every application from saved to offer.</div>
+        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/onboard')}>
+          <div className="feature-icon">&#128295;</div>
+          <div className="feature-title">Resume Tailoring</div>
+          <div className="feature-desc">One-click tailoring for any job listing. See what changed and why, with gap analysis.</div>
         </div>
-        <div className="feature-card">
-          <div className="feature-icon">&#127919;</div>
-          <div className="feature-title">ATS Score Checker</div>
-          <div className="feature-desc">Analyze your resume against any job. Get keyword matches and improvement tips.</div>
+        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/inbox')}>
+          <div className="feature-icon">&#128236;</div>
+          <div className="feature-title">Career Inbox</div>
+          <div className="feature-desc">Get a dedicated email for job applications. All correspondence in one secure place.</div>
         </div>
         <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/interview')}>
           <div className="feature-icon">&#127891;</div>
           <div className="feature-title">Interview Prep</div>
-          <div className="feature-desc">AI-generated questions, company briefs, and salary negotiation tips.</div>
+          <div className="feature-desc">AI-generated questions, company briefs, and salary tips — personalized to your gaps.</div>
         </div>
-        <div className="feature-card">
-          <div className="feature-icon">&#10024;</div>
-          <div className="feature-title">Multiple Tones</div>
-          <div className="feature-desc">Professional, confident, creative, or executive — match the company culture.</div>
+        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/preferences')}>
+          <div className="feature-icon">&#128276;</div>
+          <div className="feature-title">Monthly Job Alerts</div>
+          <div className="feature-desc">Set preferences and get notified about better opportunities as your career evolves.</div>
         </div>
       </div>
 
@@ -65,12 +90,13 @@ export default function Landing() {
             <div className="pricing-tier">Free</div>
             <div className="pricing-price">$0<span className="pricing-period">/forever</span></div>
             <ul className="pricing-list">
-              <li className="pricing-item">&#10003; 3 generations per day</li>
-              <li className="pricing-item">&#10003; Resume &amp; cover letter</li>
-              <li className="pricing-item">&#10003; Basic formatting</li>
-              <li className="pricing-item">&#10003; Copy to clipboard</li>
+              <li className="pricing-item">&#10003; 3 resume generations per day</li>
+              <li className="pricing-item">&#10003; AI resume parsing</li>
+              <li className="pricing-item">&#10003; 5 job searches per day</li>
+              <li className="pricing-item">&#10003; Application tracker</li>
+              <li className="pricing-item">&#10003; Career inbox</li>
             </ul>
-            <button className="pricing-btn" onClick={() => navigate('/app')}>Start Free</button>
+            <button className="pricing-btn" onClick={() => navigate('/onboard')}>Start Free</button>
           </div>
           <div className="pricing-card pro">
             <div className="pro-badge">POPULAR</div>
@@ -78,19 +104,20 @@ export default function Landing() {
             <div className="pricing-price">$9<span className="pricing-period">/month</span></div>
             <ul className="pricing-list">
               <li className="pricing-item">&#10003; Unlimited generations</li>
-              <li className="pricing-item">&#10003; Premium templates</li>
+              <li className="pricing-item">&#10003; Unlimited job search &amp; tailoring</li>
               <li className="pricing-item">&#10003; Export to DOCX &amp; PDF</li>
               <li className="pricing-item">&#10003; ATS score analysis</li>
-              <li className="pricing-item">&#10003; Priority support</li>
+              <li className="pricing-item">&#10003; Unlimited interview prep</li>
+              <li className="pricing-item">&#10003; Job alerts (weekly/monthly)</li>
             </ul>
-            <button className="pricing-btn pro-btn" onClick={() => navigate('/app?upgrade=true')}>Upgrade to Pro</button>
+            <button className="pricing-btn pro-btn" onClick={() => navigate('/onboard?upgrade=true')}>Upgrade to Pro</button>
           </div>
         </div>
       </div>
 
       <footer className="footer">
         <span className="footer-logo">&#9670; ResumeAI</span>
-        <span className="footer-text">&copy; 2026 &middot; Built with AI</span>
+        <span className="footer-text">&copy; 2026 &middot; Your Complete Career Platform</span>
       </footer>
     </div>
   )

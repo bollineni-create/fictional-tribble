@@ -29,7 +29,7 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  const { query, location, remote, page = 1 } = body;
+  const { query, location, remote, page = 1, userSkills, desiredTitle, desiredLocation } = body;
   if (!query) {
     return new Response(
       JSON.stringify({ error: "Search query is required" }),
@@ -129,6 +129,15 @@ export default async (req: Request, context: Context) => {
       employmentType: job.job_employment_type,
     }));
 
+    // ---- MATCH SCORING ----
+    if (userSkills && Array.isArray(userSkills) && userSkills.length > 0) {
+      for (const job of jobs) {
+        job.matchScore = calculateMatchScore(job, userSkills, desiredTitle || query, desiredLocation || location);
+      }
+      // Sort by match score descending
+      jobs.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
+    }
+
     const totalResults = data.total_count || jobs.length;
 
     // Cache for 24 hours
@@ -157,6 +166,51 @@ export default async (req: Request, context: Context) => {
     );
   }
 };
+
+function calculateMatchScore(
+  job: any,
+  userSkills: string[],
+  desiredTitle: string,
+  desiredLocation: string
+): number {
+  let score = 0;
+  const desc = ((job.description || "") + " " + (job.title || "")).toLowerCase();
+  const normalizedSkills = userSkills.map((s: string) => s.toLowerCase().trim());
+
+  // Skill match (60% weight) — count how many user skills appear in the job description
+  const matchedSkills = normalizedSkills.filter((skill: string) => {
+    // Handle multi-word skills
+    return desc.includes(skill);
+  });
+  const skillScore = normalizedSkills.length > 0
+    ? (matchedSkills.length / normalizedSkills.length) * 60
+    : 30; // neutral if no skills
+
+  // Title match (25% weight) — fuzzy match between desired title and job title
+  const jobTitleLower = (job.title || "").toLowerCase();
+  const desiredWords = desiredTitle.toLowerCase().split(/\s+/).filter(Boolean);
+  const titleMatched = desiredWords.filter((w: string) => jobTitleLower.includes(w));
+  const titleScore = desiredWords.length > 0
+    ? (titleMatched.length / desiredWords.length) * 25
+    : 12;
+
+  // Location match (15% weight)
+  let locationScore = 7; // neutral default
+  if (desiredLocation && desiredLocation.trim()) {
+    const jobLoc = (job.location || "").toLowerCase();
+    const desiredLoc = desiredLocation.toLowerCase().trim();
+    if (jobLoc.includes(desiredLoc) || desiredLoc.includes(jobLoc.split(",")[0])) {
+      locationScore = 15;
+    } else if (job.isRemote) {
+      locationScore = 12; // remote is usually a good match
+    } else {
+      locationScore = 3;
+    }
+  }
+
+  score = Math.round(skillScore + titleScore + locationScore);
+  return Math.min(100, Math.max(0, score));
+}
 
 function formatSalary(job: any): string {
   const min = job.job_min_salary;

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
 import { useToast } from '../components/Toast'
@@ -17,10 +17,18 @@ interface PrepResult {
 export default function InterviewPrep() {
   const { user, isPro } = useAuth()
   const { showToast } = useToast()
+  const [searchParams] = useSearchParams()
 
-  const [jobTitle, setJobTitle] = useState('')
-  const [company, setCompany] = useState('')
-  const [jobDescription, setJobDescription] = useState('')
+  const [jobTitle, setJobTitle] = useState(searchParams.get('jobTitle') || '')
+  const [company, setCompany] = useState(searchParams.get('company') || '')
+  const [jobDescription, setJobDescription] = useState(searchParams.get('jobDescription') || '')
+
+  // Auto-generate if pre-filled from inbox or job search
+  useEffect(() => {
+    if (searchParams.get('auto') === 'true' && jobTitle) {
+      generatePrep()
+    }
+  }, [])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PrepResult | null>(null)
   const [upgradeOpen, setUpgradeOpen] = useState(false)

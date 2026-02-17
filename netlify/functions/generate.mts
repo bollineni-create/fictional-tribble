@@ -45,7 +45,7 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  const { type, jobTitle, company, jobDescription, experience, skills, education, tone, industry } = body;
+  const { type, jobTitle, company, jobDescription, experience, skills, education, tone, industry, masterProfile, highlights } = body;
 
   if (!type || !jobTitle || !experience || !skills) {
     return new Response(
@@ -150,14 +150,83 @@ export default async (req: Request, context: Context) => {
     }
 
     // ---- GENERATE WITH ANTHROPIC ----
-    const systemPrompt =
-      type === "resume"
-        ? `You are an expert resume writer and career coach. Create a polished, ATS-optimized resume based on the user's information. Format it cleanly with clear sections: PROFESSIONAL SUMMARY, EXPERIENCE, SKILLS, and EDUCATION. Use strong action verbs and quantify achievements where possible. Output clean formatted text. Do NOT use markdown syntax like ** or ##.`
-        : `You are an expert cover letter writer. Write a compelling, personalized cover letter for the specified job. It should be 3-4 paragraphs, demonstrate knowledge of the company, highlight relevant experience, and end with a strong call to action. Output clean formatted text. Do NOT use markdown syntax like ** or ##.`;
+    const hasMasterProfile = masterProfile && masterProfile.fullName;
 
-    const userMessage =
-      type === "resume"
-        ? `Create a ${(tone || "professional").toLowerCase()} resume for a ${jobTitle} position${company ? ` at ${company}` : ""} in the ${industry || "general"} industry.
+    const resumeSystemPrompt = hasMasterProfile
+      ? `You are an expert resume writer. Generate a resume using EXACTLY this template format. Do NOT deviate from this structure. Do NOT use markdown syntax like ** or ##. Do NOT add any sections not listed below.
+
+TEMPLATE:
+[FULL NAME]
+[Email] | [Phone] | [Location]
+
+PROFESSIONAL SUMMARY
+[2-3 sentence tailored summary for the target role]
+
+EXPERIENCE
+[Job Title] — [Company]
+[Start Date] – [End Date] | [Location]
+• [Achievement with metrics]
+• [Achievement with metrics]
+• [Achievement with metrics]
+
+[Repeat for each position]
+
+EDUCATION
+[Degree], [School] — [Year]
+
+SKILLS
+[Comma-separated skills list, prioritized for the target job]
+
+CERTIFICATIONS
+[Cert name — Year] (only if certifications exist, otherwise omit this section entirely)
+
+Rules:
+- Use strong action verbs and quantify achievements where possible
+- Prioritize skills and achievements relevant to the TARGET JOB
+- Keep it to 1-2 pages worth of content
+- Every bullet point should demonstrate impact with metrics when possible
+- Do NOT invent experience or skills not present in the source data`
+      : `You are an expert resume writer and career coach. Create a polished, ATS-optimized resume based on the user's information. Format it cleanly with clear sections: PROFESSIONAL SUMMARY, EXPERIENCE, SKILLS, and EDUCATION. Use strong action verbs and quantify achievements where possible. Output clean formatted text. Do NOT use markdown syntax like ** or ##.`;
+
+    const coverLetterSystemPrompt = `You are an expert cover letter writer. Write a compelling, personalized cover letter for the specified job. It should be 3-4 paragraphs, demonstrate knowledge of the company, highlight relevant experience, and end with a strong call to action. Output clean formatted text. Do NOT use markdown syntax like ** or ##.`;
+
+    const systemPrompt = type === "resume" ? resumeSystemPrompt : coverLetterSystemPrompt;
+
+    let userMessage: string;
+    if (type === "resume" && hasMasterProfile) {
+      const mp = masterProfile;
+      const expText = (mp.experience || []).map((e: any) =>
+        `${e.title} at ${e.company} (${e.startDate} - ${e.endDate})${e.location ? `, ${e.location}` : ''}\n${(e.bullets || []).map((b: string) => `• ${b}`).join('\n')}`
+      ).join('\n\n');
+      const eduText = (mp.education || []).map((e: any) =>
+        `${e.degree}, ${e.school} (${e.year})${e.gpa ? ` GPA: ${e.gpa}` : ''}`
+      ).join('\n');
+      const certText = (mp.certifications || []).join(', ');
+
+      userMessage = `Generate a ${(tone || "professional").toLowerCase()} resume for a ${jobTitle} position${company ? ` at ${company}` : ""} in the ${industry || "general"} industry.
+
+CANDIDATE INFO:
+Name: ${mp.fullName}
+Email: ${mp.email || 'Not provided'}
+Phone: ${mp.phone || 'Not provided'}
+Location: ${mp.location || 'Not provided'}
+
+EXPERIENCE:
+${expText || experience || 'Not provided'}
+
+SKILLS TO EMPHASIZE:
+${skills || (mp.skills || []).join(', ')}
+
+EDUCATION:
+${eduText || education || 'Not provided'}
+
+${certText ? `CERTIFICATIONS:\n${certText}` : ''}
+
+${jobDescription ? `TARGET JOB DESCRIPTION:\n${jobDescription}` : ''}
+
+${highlights ? `SPECIFIC HIGHLIGHTS TO INCLUDE:\n${highlights}` : ''}`;
+    } else if (type === "resume") {
+      userMessage = `Create a ${(tone || "professional").toLowerCase()} resume for a ${jobTitle} position${company ? ` at ${company}` : ""} in the ${industry || "general"} industry.
 
 Job Description: ${jobDescription || "Not provided"}
 
@@ -165,8 +234,11 @@ My Experience: ${experience}
 
 My Skills: ${skills}
 
-My Education: ${education || "Not provided"}`
-        : `Write a ${(tone || "professional").toLowerCase()} cover letter for a ${jobTitle} position${company ? ` at ${company}` : ""} in the ${industry || "general"} industry.
+My Education: ${education || "Not provided"}
+
+${highlights ? `Specific highlights: ${highlights}` : ''}`;
+    } else {
+      userMessage = `Write a ${(tone || "professional").toLowerCase()} cover letter for a ${jobTitle} position${company ? ` at ${company}` : ""} in the ${industry || "general"} industry.
 
 Job Description: ${jobDescription || "Not provided"}
 
@@ -175,6 +247,7 @@ My Experience: ${experience}
 My Key Skills: ${skills}
 
 My Education: ${education || "Not provided"}`;
+    }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
