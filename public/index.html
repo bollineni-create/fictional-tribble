@@ -561,7 +561,7 @@
         <li>✓ ATS compatibility score</li>
         <li>✓ Priority AI processing</li>
       </ul>
-      <button class="modal-cta" id="start-checkout-btn" onclick="startCheckout()">Start 7-Day Free Trial</button>
+      <button class="modal-cta" id="start-checkout-btn" onclick="startCheckout()">Upgrade to Pro — $9/mo</button>
       <p class="modal-note">Cancel anytime · Secure payment via Stripe</p>
     </div>
     <!-- CHECKOUT VIEW -->
@@ -787,7 +787,7 @@
     } catch (err) {
       alert('Could not start checkout: ' + err.message);
     } finally {
-      btn.textContent = 'Start 7-Day Free Trial';
+      btn.textContent = 'Upgrade to Pro — $9/mo';
       btn.disabled = false;
     }
   }
