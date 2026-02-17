@@ -11,6 +11,7 @@
   <meta property="og:type" content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <script src="https://js.stripe.com/v3/"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -302,8 +303,8 @@
     .modal-overlay.open { display: flex; }
     .modal {
       background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
-      padding: 40px 36px; max-width: 400px; width: 100%; text-align: center;
-      position: relative; animation: fadeIn 0.3s ease-out;
+      padding: 40px 36px; max-width: 500px; width: 100%; text-align: center;
+      position: relative; animation: fadeIn 0.3s ease-out; max-height: 90vh; overflow-y: auto;
     }
     .modal-close {
       position: absolute; top: 16px; right: 16px; background: none; border: none;
@@ -547,20 +548,35 @@
 <div id="upgrade-modal" class="modal-overlay">
   <div class="modal">
     <button class="modal-close" onclick="closeUpgrade()">✕</button>
-    <div class="modal-icon">🚀</div>
-    <h2 class="modal-title">Upgrade to Pro</h2>
-    <p class="modal-desc" id="modal-desc">Unlock unlimited generations, premium templates, and DOCX/PDF export.</p>
-    <div class="modal-price">$9<span class="modal-period">/month</span></div>
-    <ul class="modal-features">
-      <li>✓ Unlimited generations</li>
-      <li>✓ Premium resume templates</li>
-      <li>✓ Export to DOCX & PDF</li>
-      <li>✓ ATS compatibility score</li>
-      <li>✓ Priority AI processing</li>
-    </ul>
-    <!-- This button will link to your Stripe payment page -->
-    <button class="modal-cta" id="stripe-btn" onclick="alert('Stripe checkout will be connected here! See setup guide.')">Start 7-Day Free Trial</button>
-    <p class="modal-note">Cancel anytime · No credit card required to start</p>
+    <!-- PITCH VIEW -->
+    <div id="modal-pitch">
+      <div class="modal-icon">🚀</div>
+      <h2 class="modal-title">Upgrade to Pro</h2>
+      <p class="modal-desc" id="modal-desc">Unlock unlimited generations, premium templates, and DOCX/PDF export.</p>
+      <div class="modal-price">$9<span class="modal-period">/month</span></div>
+      <ul class="modal-features">
+        <li>✓ Unlimited generations</li>
+        <li>✓ Premium resume templates</li>
+        <li>✓ Export to DOCX & PDF</li>
+        <li>✓ ATS compatibility score</li>
+        <li>✓ Priority AI processing</li>
+      </ul>
+      <button class="modal-cta" id="start-checkout-btn" onclick="startCheckout()">Start 7-Day Free Trial</button>
+      <p class="modal-note">Cancel anytime · Secure payment via Stripe</p>
+    </div>
+    <!-- CHECKOUT VIEW -->
+    <div id="modal-checkout" style="display:none">
+      <h2 class="modal-title" style="margin-bottom:20px">Complete Your Upgrade</h2>
+      <div id="checkout-container" style="min-height:300px"></div>
+      <button class="start-over-btn" style="width:100%;margin-top:12px" onclick="showPitch()">← Back</button>
+    </div>
+    <!-- SUCCESS VIEW -->
+    <div id="modal-success" style="display:none">
+      <div class="modal-icon">🎉</div>
+      <h2 class="modal-title">Welcome to Pro!</h2>
+      <p class="modal-desc">Your upgrade is complete. You now have unlimited generations, premium templates, and export features.</p>
+      <button class="modal-cta" onclick="closeUpgrade()">Start Creating</button>
+    </div>
   </div>
 </div>
 
@@ -718,11 +734,75 @@
   function hideError() { document.getElementById('error-box').style.display = 'none'; }
 
   // ---- MODAL ----
-  function openUpgrade() { document.getElementById('upgrade-modal').classList.add('open'); }
-  function closeUpgrade() { document.getElementById('upgrade-modal').classList.remove('open'); }
+  function openUpgrade() { document.getElementById('upgrade-modal').classList.add('open'); showPitch(); }
+  function closeUpgrade() {
+    document.getElementById('upgrade-modal').classList.remove('open');
+    showPitch();
+  }
+  function showPitch() {
+    document.getElementById('modal-pitch').style.display = '';
+    document.getElementById('modal-checkout').style.display = 'none';
+    document.getElementById('modal-success').style.display = 'none';
+  }
   document.getElementById('upgrade-modal').addEventListener('click', function(e) {
     if (e.target === this) closeUpgrade();
   });
+
+  // ---- STRIPE EMBEDDED CHECKOUT ----
+  // IMPORTANT: Replace this with your Stripe Publishable Key
+  const STRIPE_PK = 'pk_live_51T1fqEFyD3IgcpECoSOIFPs59HLLvC7udSHohLA45WWYc8TW5nSqFCTG04uORZYBlgUoF8UkobWT2KR1KBwSOYUe00maxfwAsS';
+  let stripeInstance = null;
+  let checkoutInstance = null;
+
+  async function startCheckout() {
+    const btn = document.getElementById('start-checkout-btn');
+    btn.textContent = 'Loading...';
+    btn.disabled = true;
+
+    try {
+      // Create checkout session via our serverless function
+      const res = await fetch('/api/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to start checkout');
+
+      // Initialize Stripe and mount embedded checkout
+      if (!stripeInstance) {
+        stripeInstance = Stripe(STRIPE_PK);
+      }
+
+      // Show checkout view
+      document.getElementById('modal-pitch').style.display = 'none';
+      document.getElementById('modal-checkout').style.display = '';
+
+      // Mount the embedded checkout
+      checkoutInstance = await stripeInstance.initEmbeddedCheckout({
+        clientSecret: data.clientSecret,
+      });
+      checkoutInstance.mount('#checkout-container');
+
+    } catch (err) {
+      alert('Could not start checkout: ' + err.message);
+    } finally {
+      btn.textContent = 'Start 7-Day Free Trial';
+      btn.disabled = false;
+    }
+  }
+
+  // Check if returning from successful checkout
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('session_id')) {
+    // User completed payment
+    document.getElementById('upgrade-modal').classList.add('open');
+    document.getElementById('modal-pitch').style.display = 'none';
+    document.getElementById('modal-checkout').style.display = 'none';
+    document.getElementById('modal-success').style.display = '';
+    // Clean up URL
+    window.history.replaceState({}, '', window.location.pathname);
+  }
 
   // ---- INIT ----
   usageCount = getUsage();
