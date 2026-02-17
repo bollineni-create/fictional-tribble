@@ -25,7 +25,9 @@ export default async (req: Request, context: Context) => {
     params.append("line_items[0][price]", priceId);
     params.append("line_items[0][quantity]", "1");
     params.append("ui_mode", "embedded");
-    params.append("return_url", "https://resume-genius-ai.netlify.app/?session_id={CHECKOUT_SESSION_ID}");
+    // Use the request origin so this works on any domain (custom domain, deploy previews, etc.)
+    const origin = new URL(req.url).origin;
+    params.append("return_url", `${origin}/?session_id={CHECKOUT_SESSION_ID}`);
 
     const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",

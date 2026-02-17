@@ -3,3 +3,12 @@
 
 [functions]
   directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Security headers for all pages
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
