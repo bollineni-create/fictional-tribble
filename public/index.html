@@ -747,6 +747,14 @@
       });
 
       const data = await res.json();
+
+      // If server says limit reached, show upgrade modal
+      if (data.limitReached) {
+        showView('form');
+        openUpgrade();
+        return;
+      }
+
       if (!res.ok || data.error) throw new Error(data.error || 'Generation failed');
 
       resultContent = data.result;
@@ -754,8 +762,14 @@
       document.getElementById('result-label').textContent =
         activeTab === 'resume' ? '📄 Your Tailored Resume' : '✉️ Your Cover Letter';
 
-      usageCount++;
-      saveUsage(usageCount);
+      // Sync usage from server response
+      if (typeof data.remaining === 'number') {
+        usageCount = DAILY_LIMIT - data.remaining;
+        saveUsage(usageCount);
+      } else {
+        usageCount++;
+        saveUsage(usageCount);
+      }
       updateUsageUI();
       showView('result');
     } catch (err) {
