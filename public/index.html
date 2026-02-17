@@ -274,6 +274,19 @@
       border-radius: 8px; padding: 10px 18px; font-size: 14px; cursor: pointer; font-family: var(--font);
     }
     .result-note { font-size: 13px; color: var(--text-muted); }
+    .char-hint { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-muted); }
+    .char-hint.met { color: var(--green); }
+    .retry-btn {
+      width: 100%; padding: 14px; margin-top: 16px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: #1a1a1a; border: none; border-radius: 12px; font-size: 16px;
+      font-weight: 700; cursor: pointer; font-family: var(--font); letter-spacing: 0.3px;
+    }
+    .retry-tip {
+      background: var(--accent-glow); border: 1px solid rgba(166, 136, 68, 0.27);
+      border-radius: 10px; padding: 14px 18px; margin-top: 16px;
+      font-size: 13px; color: var(--accent); line-height: 1.5;
+    }
 
     /* ---- ERROR ---- */
     .error-box {
@@ -486,12 +499,12 @@
         <textarea class="textarea" id="jobDescription" rows="4" placeholder="Paste the job description here for the best results..."></textarea>
       </div>
       <div class="form-group">
-        <label class="label">Your Experience *</label>
-        <textarea class="textarea" id="experience" rows="4" placeholder="Describe your relevant work experience, achievements, and responsibilities..."></textarea>
+        <label class="label">Your Experience * <span class="char-hint" id="exp-hint">(minimum 50 characters)</span></label>
+        <textarea class="textarea" id="experience" rows="4" placeholder="Example: Worked as a Marketing Manager at Acme Corp for 3 years. Led a team of 5, increased social media engagement by 40%, managed $200K annual budget, launched 3 product campaigns that generated $1.2M in revenue..." oninput="updateCharCount('experience','exp-hint',50)"></textarea>
       </div>
       <div class="form-group">
-        <label class="label">Key Skills *</label>
-        <textarea class="textarea" id="skills" rows="2" placeholder="e.g. Project management, Python, data analysis, team leadership..."></textarea>
+        <label class="label">Key Skills * <span class="char-hint" id="skills-hint">(minimum 20 characters)</span></label>
+        <textarea class="textarea" id="skills" rows="2" placeholder="Example: Project management, Python, SQL, data analysis, team leadership, budgeting, Salesforce, public speaking..." oninput="updateCharCount('skills','skills-hint',20)"></textarea>
       </div>
       <div class="form-group">
         <label class="label">Education</label>
@@ -524,6 +537,8 @@
         <button class="start-over-btn" onclick="startOver()">← Generate Another</button>
         <span class="result-note" id="result-remaining">3 generations remaining today</span>
       </div>
+      <button class="retry-btn" onclick="startOver()">🔄 Not what you expected? Edit & Try Again</button>
+      <div class="retry-tip">💡 <strong>Tip:</strong> For the best results, include specific details — job titles, company names, years of experience, measurable achievements (e.g. "increased sales by 30%"), and the actual job description from the posting.</div>
     </div>
   </div>
 </div>
@@ -627,6 +642,14 @@
       showError('Please fill in the required fields (Job Title, Experience, Skills).');
       return;
     }
+    if (experience.length < 50) {
+      showError('Please add more detail to your Experience (at least 50 characters). The more detail you provide, the better your resume will be!');
+      return;
+    }
+    if (skills.length < 20) {
+      showError('Please add more skills (at least 20 characters). List your key skills separated by commas.');
+      return;
+    }
 
     hideError();
     showView('generating');
@@ -677,6 +700,17 @@
     });
   }
   function startOver() { showView('form'); }
+  function updateCharCount(fieldId, hintId, min) {
+    const len = document.getElementById(fieldId).value.trim().length;
+    const hint = document.getElementById(hintId);
+    if (len >= min) {
+      hint.textContent = '✓ looks good!';
+      hint.className = 'char-hint met';
+    } else {
+      hint.textContent = `(${min - len} more characters needed)`;
+      hint.className = 'char-hint';
+    }
+  }
   function showError(msg) {
     const box = document.getElementById('error-box');
     box.textContent = msg; box.style.display = '';
