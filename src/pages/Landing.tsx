@@ -213,9 +213,9 @@ export default function Landing() {
       </div>
 
       {/* How It Works */}
-      <div style={{ maxWidth: 800, margin: '0 auto 48px', padding: '0 20px' }}>
+      <div style={{ maxWidth: 960, margin: '0 auto 48px', padding: '0 20px' }}>
         <h2 className="section-title" style={{ marginBottom: 32 }}>How It Works</h2>
-        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
           {[
             { num: '1', icon: '&#128196;', title: 'Upload Resume', desc: 'Upload your PDF or DOCX. AI extracts your experience, skills, and education.' },
             { num: '2', icon: '&#10024;', title: 'Tailor & Generate', desc: 'Answer a few questions about your target job. Get a polished, uniform resume.' },
@@ -223,7 +223,7 @@ export default function Landing() {
             { num: '4', icon: '&#128236;', title: 'Communicate & Prep', desc: 'Manage correspondence in your career inbox. AI preps you for interviews.' },
           ].map(step => (
             <div key={step.num} style={{
-              flex: '1 1 200px', maxWidth: 240, textAlign: 'center',
+              textAlign: 'center',
               background: 'var(--surface)', border: '1px solid var(--border)',
               borderRadius: 14, padding: 24,
             }}>
@@ -243,8 +243,8 @@ export default function Landing() {
 
         {/* Tab bar */}
         <div style={{
-          display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap',
-          marginBottom: 32, padding: '0 8px',
+          display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'nowrap',
+          marginBottom: 32, padding: '0 8px', overflowX: 'auto',
         }}>
           {FEATURES.map((f, i) => (
             <button
@@ -254,8 +254,8 @@ export default function Landing() {
                 background: activeTab === i ? 'var(--accent)' : 'var(--surface)',
                 color: activeTab === i ? '#1a1a1a' : 'var(--text-muted)',
                 border: activeTab === i ? 'none' : '1px solid var(--border)',
-                borderRadius: 10, padding: '10px 18px',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                borderRadius: 10, padding: '9px 14px',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 fontFamily: 'var(--font)', transition: 'all 0.2s',
                 whiteSpace: 'nowrap',
               }}
@@ -330,71 +330,6 @@ export default function Landing() {
         })()}
       </div>
 
-      {/* Three Pillars Showcase — above pricing */}
-      <div style={{ maxWidth: 900, margin: '0 auto 56px', padding: '0 20px' }}>
-        <h2 className="section-title" style={{ marginBottom: 12 }}>Beyond the Resume</h2>
-        <p style={{
-          textAlign: 'center', color: 'var(--text-muted)', fontSize: 15,
-          maxWidth: 520, margin: '0 auto 36px', lineHeight: 1.6,
-        }}>
-          ResumeAI doesn't stop at building your resume. We power your entire job search.
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
-          {[
-            {
-              icon: '\uD83D\uDD0D', title: 'Smart Job Search',
-              desc: 'AI-scored listings matched to your profile. Filter by role, location, and salary — apply with confidence.',
-              route: '/jobs',
-            },
-            {
-              icon: '\uD83D\uDCEC', title: 'Career Inbox',
-              desc: 'A dedicated email for your applications. Every recruiter reply, interview invite, and offer in one place.',
-              route: '/inbox',
-            },
-            {
-              icon: '\uD83C\uDF93', title: 'Interview Prep',
-              desc: 'Personalized questions, company research, and salary insights — tailored to your gaps and target role.',
-              route: '/interview',
-            },
-          ].map((p) => (
-            <div
-              key={p.title}
-              onClick={() => navigate(p.route)}
-              style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 16, padding: '28px 24px', cursor: 'pointer',
-                transition: 'border-color 0.2s, transform 0.15s',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent)'
-                ;(e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)'
-                ;(e.currentTarget as HTMLDivElement).style.transform = 'none'
-              }}
-            >
-              <div style={{ fontSize: 32, marginBottom: 12 }}>{p.icon}</div>
-              <div style={{
-                fontFamily: 'var(--display)', fontSize: 18, fontWeight: 700,
-                color: 'var(--white)', marginBottom: 8,
-              }}>
-                {p.title}
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                {p.desc}
-              </div>
-              <div style={{
-                marginTop: 14, fontSize: 13, fontWeight: 600, color: 'var(--accent)',
-              }}>
-                Learn more &rarr;
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Checkout Success Banner */}
       {checkoutSuccess && (
         <div style={{
@@ -458,26 +393,21 @@ export default function Landing() {
                 <li className="pricing-item">&#10003; Career inbox &amp; email</li>
                 <li className="pricing-item">&#10003; Weekly/monthly job alerts</li>
               </ul>
-              {BUY_BUTTON_PRO_ID ? (
-                <div style={{ marginTop: 8, overflow: 'hidden', maxWidth: '100%' }}>
+              <button className="pricing-btn pro-btn" onClick={() => {
+                const el = document.querySelector(`[data-pro-buy]`)
+                if (el) el.scrollIntoView({ behavior: 'smooth' })
+                else navigate('/onboard?upgrade=pro')
+              }}>
+                Upgrade to Pro
+              </button>
+              {BUY_BUTTON_PRO_ID && (
+                <div data-pro-buy="" style={{ marginTop: 8, overflow: 'hidden', maxWidth: '100%' }}>
                   <StripeBuyButton
                     buyButtonId={BUY_BUTTON_PRO_ID}
                     clientReferenceId={user?.id}
                     customerEmail={user?.email}
                   />
                 </div>
-              ) : PAYMENT_LINK_PRO ? (
-                <a
-                  href={`${PAYMENT_LINK_PRO}${user?.email ? `?prefilled_email=${encodeURIComponent(user.email)}` : ''}`}
-                  className="pricing-btn pro-btn"
-                  style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}
-                >
-                  Upgrade to Pro
-                </a>
-              ) : (
-                <button className="pricing-btn pro-btn" onClick={() => navigate('/onboard?upgrade=pro')}>
-                  Upgrade to Pro
-                </button>
               )}
             </div>
 
@@ -497,26 +427,21 @@ export default function Landing() {
                 <li className="pricing-item">&#10003; Daily job alerts</li>
                 <li className="pricing-item">&#10003; Priority AI processing</li>
               </ul>
-              {BUY_BUTTON_MAX_ID ? (
-                <div style={{ marginTop: 8, overflow: 'hidden', maxWidth: '100%' }}>
+              <button className="pricing-btn pro-btn" onClick={() => {
+                const el = document.querySelector(`[data-max-buy]`)
+                if (el) el.scrollIntoView({ behavior: 'smooth' })
+                else navigate('/onboard?upgrade=max')
+              }}>
+                Go Max
+              </button>
+              {BUY_BUTTON_MAX_ID && (
+                <div data-max-buy="" style={{ marginTop: 8, overflow: 'hidden', maxWidth: '100%' }}>
                   <StripeBuyButton
                     buyButtonId={BUY_BUTTON_MAX_ID}
                     clientReferenceId={user?.id}
                     customerEmail={user?.email}
                   />
                 </div>
-              ) : PAYMENT_LINK_MAX ? (
-                <a
-                  href={`${PAYMENT_LINK_MAX}${user?.email ? `?prefilled_email=${encodeURIComponent(user.email)}` : ''}`}
-                  className="pricing-btn pro-btn"
-                  style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}
-                >
-                  Go Max
-                </a>
-              ) : (
-                <button className="pricing-btn pro-btn" onClick={() => navigate('/onboard?upgrade=max')}>
-                  Go Max
-                </button>
               )}
             </div>
           </div>
