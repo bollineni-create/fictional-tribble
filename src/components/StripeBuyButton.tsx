@@ -1,15 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 /**
  * Stripe Buy Button — embeddable no-code component
  *
- * To set up:
- * 1. Go to Stripe Dashboard → Payment Links
- * 2. Create payment links for Pro and Max plans
- * 3. Click "Buy button" on each link to get the buy-button-id
- * 4. Set VITE_STRIPE_BUY_BUTTON_PRO_ID and VITE_STRIPE_BUY_BUTTON_MAX_ID
- *
- * Each Buy Button renders a Stripe-hosted button that opens checkout.
+ * Uses a DOM ref to set attributes directly on the custom element,
+ * because React's JSX doesn't reliably pass attributes to web components.
  */
 
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PK || 'pk_live_51T1fqEFyD3IgcpECoSOIFPs59HLLvC7udSHohLA45WWYc8TW5nSqFCTG04uORZYBlgUoF8UkobWT2KR1KBwSOYUe00maxfwAsS'
@@ -29,28 +24,51 @@ export default function StripeBuyButton({
   customerEmail,
   customerSessionClientSecret,
 }: StripeBuyButtonProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
-    // Load the Stripe buy button script if not already loaded
-    if (!document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]')) {
-      const script = document.createElement('script')
-      script.src = 'https://js.stripe.com/v3/buy-button.js'
-      script.async = true
-      document.head.appendChild(script)
+    if (!buyButtonId || !containerRef.current) return
+
+    // Clear previous button if re-rendering
+    containerRef.current.innerHTML = ''
+
+    // Wait for the Stripe buy-button script to be ready
+    const renderButton = () => {
+      if (!containerRef.current) return
+
+      const el = document.createElement('stripe-buy-button')
+      el.setAttribute('buy-button-id', buyButtonId)
+      el.setAttribute('publishable-key', publishableKey)
+      if (clientReferenceId) el.setAttribute('client-reference-id', clientReferenceId)
+      if (customerEmail) el.setAttribute('customer-email', customerEmail)
+      if (customerSessionClientSecret) el.setAttribute('customer-session-client-secret', customerSessionClientSecret)
+
+      containerRef.current.appendChild(el)
     }
-  }, [])
+
+    // Check if the script is already loaded
+    if (customElements.get('stripe-buy-button')) {
+      renderButton()
+    } else {
+      // Wait for the script to define the custom element
+      const check = setInterval(() => {
+        if (customElements.get('stripe-buy-button')) {
+          clearInterval(check)
+          renderButton()
+        }
+      }, 100)
+
+      // Timeout after 10s
+      const timeout = setTimeout(() => clearInterval(check), 10000)
+
+      return () => {
+        clearInterval(check)
+        clearTimeout(timeout)
+      }
+    }
+  }, [buyButtonId, publishableKey, clientReferenceId, customerEmail, customerSessionClientSecret])
 
   if (!buyButtonId) return null
 
-  const attrs: Record<string, string> = {
-    'buy-button-id': buyButtonId,
-    'publishable-key': publishableKey,
-  }
-  if (clientReferenceId) attrs['client-reference-id'] = clientReferenceId
-  if (customerEmail) attrs['customer-email'] = customerEmail
-  if (customerSessionClientSecret) attrs['customer-session-client-secret'] = customerSessionClientSecret
-
-  return (
-    // @ts-ignore — Stripe web component
-    <stripe-buy-button {...attrs}></stripe-buy-button>
-  )
+  return <div ref={containerRef} />
 }
