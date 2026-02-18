@@ -22,6 +22,11 @@ interface Job {
   matchScore?: number
 }
 
+interface SavedJob {
+  job_id: string
+  status: string
+}
+
 export default function JobSearch() {
   const { user, isPro, tier } = useAuth()
   const { showToast } = useToast()
@@ -40,15 +45,27 @@ export default function JobSearch() {
   const [remaining, setRemaining] = useState<number | null>(null)
   const [sortBy, setSortBy] = useState<'match' | 'date'>('match')
 
+  // Advanced filters
+  const [showFilters, setShowFilters] = useState(false)
+  const [datePosted, setDatePosted] = useState('')
+  const [employmentType, setEmploymentType] = useState('')
+  const [experienceLevel, setExperienceLevel] = useState('')
+  const [radius, setRadius] = useState('')
+
   // User profile for match scoring
   const [userSkills, setUserSkills] = useState<string[]>([])
   const [desiredTitle, setDesiredTitle] = useState('')
   const [desiredLocation, setDesiredLocation] = useState('')
   const [hasProfile, setHasProfile] = useState(false)
 
+  // Saved jobs
+  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
+  const [savingJobId, setSavingJobId] = useState<string | null>(null)
+
   useEffect(() => {
     if (!user) return
     loadUserProfile()
+    loadSavedJobs()
   }, [user])
 
   const loadUserProfile = async () => {
@@ -67,6 +84,59 @@ export default function JobSearch() {
         setHasProfile(true)
       }
     } catch {}
+  }
+
+  const loadSavedJobs = async () => {
+    if (!user) return
+    try {
+      const { data } = await supabase
+        .from('saved_jobs')
+        .select('job_id')
+        .eq('user_id', user.id)
+      if (data) {
+        setSavedJobIds(new Set(data.map((d: any) => d.job_id)))
+      }
+    } catch {}
+  }
+
+  const toggleSaveJob = async (job: Job) => {
+    if (!user) {
+      showToast('Sign in to save jobs')
+      return
+    }
+    setSavingJobId(job.id)
+    try {
+      if (savedJobIds.has(job.id)) {
+        // Unsave
+        await supabase.from('saved_jobs').delete().eq('user_id', user.id).eq('job_id', job.id)
+        setSavedJobIds(prev => { const s = new Set(prev); s.delete(job.id); return s })
+        showToast('Job removed from saved')
+      } else {
+        // Save
+        await supabase.from('saved_jobs').upsert({
+          user_id: user.id,
+          job_id: job.id,
+          title: job.title,
+          company: job.company,
+          company_logo: job.companyLogo,
+          location: job.location,
+          is_remote: job.isRemote,
+          salary: job.salary,
+          description: job.description?.substring(0, 5000),
+          apply_url: job.applyUrl,
+          source: job.source,
+          posted_at: job.postedAt || null,
+          employment_type: job.employmentType,
+          match_score: job.matchScore || null,
+        }, { onConflict: 'user_id,job_id' })
+        setSavedJobIds(prev => new Set(prev).add(job.id))
+        showToast('Job saved!')
+      }
+    } catch (err: any) {
+      showToast('Failed to save job')
+    } finally {
+      setSavingJobId(null)
+    }
   }
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
@@ -96,6 +166,10 @@ export default function JobSearch() {
           userSkills: userSkills.length > 0 ? userSkills : undefined,
           desiredTitle: desiredTitle || query.trim(),
           desiredLocation: desiredLocation || location.trim(),
+          datePosted: datePosted || undefined,
+          employmentTypes: employmentType || undefined,
+          jobRequirements: experienceLevel || undefined,
+          radius: radius ? parseInt(radius) : undefined,
         }),
       })
 
@@ -143,6 +217,8 @@ export default function JobSearch() {
     return 'rgba(212, 85, 74, 0.1)'
   }
 
+  const activeFilterCount = [datePosted, employmentType, experienceLevel, radius].filter(Boolean).length
+
   return (
     <div className="app-container" style={{ maxWidth: 960 }}>
       <nav className="app-nav">
@@ -182,7 +258,7 @@ export default function JobSearch() {
         )}
 
         {/* Search Form */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <input
             className="input"
             style={{ flex: 2, minWidth: 200 }}
@@ -204,11 +280,23 @@ export default function JobSearch() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
+        {/* Filter toggle + quick options */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--text-muted)', cursor: 'pointer' }}>
             <input type="checkbox" checked={remoteOnly} onChange={(e) => setRemoteOnly(e.target.checked)} />
             Remote only
           </label>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              border: '1px solid var(--border)', cursor: 'pointer',
+              background: showFilters || activeFilterCount > 0 ? 'var(--accent)' : 'transparent',
+              color: showFilters || activeFilterCount > 0 ? '#000' : 'var(--text-muted)',
+            }}
+          >
+            &#9881; Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+          </button>
           {searched && (
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => { setSortBy('match'); searchJobs(page) }} style={{
@@ -236,6 +324,89 @@ export default function JobSearch() {
             </span>
           )}
         </div>
+
+        {/* Advanced Filters Panel */}
+        {showFilters && (
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 12, padding: '16px 20px', marginBottom: 20,
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12,
+          }}>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Date Posted</label>
+              <select
+                className="input"
+                value={datePosted}
+                onChange={e => setDatePosted(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}
+              >
+                <option value="">Any time</option>
+                <option value="today">Today</option>
+                <option value="3days">Last 3 days</option>
+                <option value="week">This week</option>
+                <option value="month">This month</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Employment Type</label>
+              <select
+                className="input"
+                value={employmentType}
+                onChange={e => setEmploymentType(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}
+              >
+                <option value="">All types</option>
+                <option value="FULLTIME">Full-time</option>
+                <option value="PARTTIME">Part-time</option>
+                <option value="CONTRACTOR">Contract</option>
+                <option value="INTERN">Internship</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Experience Level</label>
+              <select
+                className="input"
+                value={experienceLevel}
+                onChange={e => setExperienceLevel(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}
+              >
+                <option value="">Any level</option>
+                <option value="no_experience">No experience</option>
+                <option value="under_3_years_experience">Under 3 years</option>
+                <option value="more_than_3_years_experience">3+ years</option>
+                <option value="no_degree">No degree required</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Radius (km)</label>
+              <select
+                className="input"
+                value={radius}
+                onChange={e => setRadius(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}
+              >
+                <option value="">Any distance</option>
+                <option value="10">10 km</option>
+                <option value="25">25 km</option>
+                <option value="50">50 km</option>
+                <option value="100">100 km</option>
+                <option value="200">200 km</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button
+                onClick={() => { setDatePosted(''); setEmploymentType(''); setExperienceLevel(''); setRadius('') }}
+                style={{
+                  padding: '8px 14px', borderRadius: 8, fontSize: 12,
+                  border: '1px solid var(--border)', background: 'transparent',
+                  color: 'var(--text-muted)', cursor: 'pointer',
+                }}
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Results */}
         {loading && (
@@ -280,15 +451,31 @@ export default function JobSearch() {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div className="saved-card-title">{job.title}</div>
-                          {typeof job.matchScore === 'number' && (
-                            <span style={{
-                              padding: '2px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                              background: matchBg(job.matchScore), color: matchColor(job.matchScore),
-                              whiteSpace: 'nowrap',
-                            }}>
-                              {job.matchScore}% match
-                            </span>
-                          )}
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                            {typeof job.matchScore === 'number' && (
+                              <span style={{
+                                padding: '2px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                background: matchBg(job.matchScore), color: matchColor(job.matchScore),
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {job.matchScore}% match
+                              </span>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleSaveJob(job) }}
+                              disabled={savingJobId === job.id}
+                              title={savedJobIds.has(job.id) ? 'Remove from saved' : 'Save job'}
+                              style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                fontSize: 18, padding: '2px 4px', lineHeight: 1,
+                                opacity: savingJobId === job.id ? 0.5 : 1,
+                                color: savedJobIds.has(job.id) ? 'var(--accent)' : 'var(--text-muted)',
+                                transition: 'color 0.2s',
+                              }}
+                            >
+                              {savedJobIds.has(job.id) ? '\u2605' : '\u2606'}
+                            </button>
+                          </div>
                         </div>
                         <div className="saved-card-meta">
                           {job.company} &middot; {job.location}
@@ -328,14 +515,29 @@ export default function JobSearch() {
                   <h3 style={{ fontFamily: 'var(--display)', fontSize: 20, fontWeight: 700, color: 'var(--white)' }}>
                     {selectedJob.title}
                   </h3>
-                  {typeof selectedJob.matchScore === 'number' && (
-                    <span style={{
-                      padding: '4px 14px', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                      background: matchBg(selectedJob.matchScore), color: matchColor(selectedJob.matchScore),
-                    }}>
-                      {selectedJob.matchScore}%
-                    </span>
-                  )}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {typeof selectedJob.matchScore === 'number' && (
+                      <span style={{
+                        padding: '4px 14px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                        background: matchBg(selectedJob.matchScore), color: matchColor(selectedJob.matchScore),
+                      }}>
+                        {selectedJob.matchScore}%
+                      </span>
+                    )}
+                    <button
+                      onClick={() => toggleSaveJob(selectedJob)}
+                      disabled={savingJobId === selectedJob.id}
+                      style={{
+                        background: savedJobIds.has(selectedJob.id) ? 'var(--accent)' : 'var(--surface)',
+                        border: '1px solid var(--accent)', borderRadius: 8,
+                        padding: '4px 12px', fontSize: 13, fontWeight: 600,
+                        cursor: 'pointer',
+                        color: savedJobIds.has(selectedJob.id) ? '#000' : 'var(--accent)',
+                      }}
+                    >
+                      {savedJobIds.has(selectedJob.id) ? '\u2605 Saved' : '\u2606 Save'}
+                    </button>
+                  </div>
                 </div>
                 <p style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 4 }}>
                   {selectedJob.company} &middot; {selectedJob.location}

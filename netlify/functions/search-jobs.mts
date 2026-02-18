@@ -29,7 +29,11 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  const { query, location, remote, page = 1, userSkills, desiredTitle, desiredLocation } = body;
+  const {
+    query, location, remote, page = 1,
+    userSkills, desiredTitle, desiredLocation,
+    datePosted, employmentTypes, jobRequirements, radius, companyTypes,
+  } = body;
   if (!query) {
     return new Response(
       JSON.stringify({ error: "Search query is required" }),
@@ -70,7 +74,7 @@ export default async (req: Request, context: Context) => {
     }
 
     // ---- CHECK CACHE ----
-    const cacheKey = `jobcache:${await hashString(`${query}|${location || ''}|${remote || ''}|${page}`)}`;
+    const cacheKey = `jobcache:${await hashString(`${query}|${location || ''}|${remote || ''}|${page}|${datePosted || ''}|${employmentTypes || ''}|${jobRequirements || ''}|${radius || ''}`)}`;
     const cacheStore = getStore("job-cache");
     const cached = await cacheStore.get(cacheKey, { type: "json" });
     if (cached && Date.now() < cached.expiresAt) {
@@ -94,6 +98,11 @@ export default async (req: Request, context: Context) => {
       num_pages: "1",
     });
     if (remote) params.set("remote_jobs_only", "true");
+    if (datePosted) params.set("date_posted", datePosted); // all, today, 3days, week, month
+    if (employmentTypes) params.set("employment_types", employmentTypes); // FULLTIME, CONTRACTOR, PARTTIME, INTERN
+    if (jobRequirements) params.set("job_requirements", jobRequirements); // under_3_years_experience, more_than_3_years_experience, no_experience, no_degree
+    if (radius) params.set("radius", String(radius)); // km radius from location
+    if (companyTypes) params.set("company_type", companyTypes); // Finance, Information, etc.
 
     const response = await fetch(
       `https://jsearch.p.rapidapi.com/search?${params.toString()}`,
@@ -158,7 +167,7 @@ export default async (req: Request, context: Context) => {
       JSON.stringify({
         jobs,
         totalResults,
-        remaining: isPro ? 999 : FREE_DAILY_LIMIT - dailyCount - 1,
+        remaining: dailyLimit - dailyCount - 1,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );

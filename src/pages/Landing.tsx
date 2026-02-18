@@ -2,13 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import StripePricingTable from '../components/StripePricingTable'
-import StripeBuyButton from '../components/StripeBuyButton'
 import { useAuth } from '../context/AuthContext'
 
-const PAYMENT_LINK_PRO = import.meta.env.VITE_STRIPE_PAYMENT_LINK_PRO || ''
-const PAYMENT_LINK_MAX = import.meta.env.VITE_STRIPE_PAYMENT_LINK_MAX || ''
-const BUY_BUTTON_PRO_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_PRO_ID || 'buy_btn_1T25wHFyD3IgcpECsEtexQGo'
-const BUY_BUTTON_MAX_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_MAX_ID || 'buy_btn_1T25wyFyD3IgcpECMrHbuEz3'
+const PAYMENT_LINK_PRO = import.meta.env.VITE_STRIPE_PAYMENT_LINK_PRO || 'https://buy.stripe.com/bJe9ATdgP65g8tube1afS02'
+const PAYMENT_LINK_MAX = import.meta.env.VITE_STRIPE_PAYMENT_LINK_MAX || 'https://buy.stripe.com/8x28wPa4D65g4de95TafS03'
 const PRICING_TABLE_ID = import.meta.env.VITE_STRIPE_PRICING_TABLE_ID || ''
 
 const FEATURES = [
@@ -393,22 +390,13 @@ export default function Landing() {
                 <li className="pricing-item">&#10003; Career inbox &amp; email</li>
                 <li className="pricing-item">&#10003; Weekly/monthly job alerts</li>
               </ul>
-              <button className="pricing-btn pro-btn" onClick={() => {
-                const el = document.querySelector(`[data-pro-buy]`)
-                if (el) el.scrollIntoView({ behavior: 'smooth' })
-                else navigate('/onboard?upgrade=pro')
-              }}>
+              <a
+                href={`${PAYMENT_LINK_PRO}${user?.email ? `?prefilled_email=${encodeURIComponent(user.email)}` : ''}`}
+                className="pricing-btn pro-btn"
+                style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}
+              >
                 Upgrade to Pro
-              </button>
-              {BUY_BUTTON_PRO_ID && (
-                <div data-pro-buy="" style={{ marginTop: 8, overflow: 'hidden', maxWidth: '100%' }}>
-                  <StripeBuyButton
-                    buyButtonId={BUY_BUTTON_PRO_ID}
-                    clientReferenceId={user?.id}
-                    customerEmail={user?.email}
-                  />
-                </div>
-              )}
+              </a>
             </div>
 
             {/* Max Tier */}
@@ -427,22 +415,13 @@ export default function Landing() {
                 <li className="pricing-item">&#10003; Daily job alerts</li>
                 <li className="pricing-item">&#10003; Priority AI processing</li>
               </ul>
-              <button className="pricing-btn pro-btn" onClick={() => {
-                const el = document.querySelector(`[data-max-buy]`)
-                if (el) el.scrollIntoView({ behavior: 'smooth' })
-                else navigate('/onboard?upgrade=max')
-              }}>
+              <a
+                href={`${PAYMENT_LINK_MAX}${user?.email ? `?prefilled_email=${encodeURIComponent(user.email)}` : ''}`}
+                className="pricing-btn pro-btn"
+                style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}
+              >
                 Go Max
-              </button>
-              {BUY_BUTTON_MAX_ID && (
-                <div data-max-buy="" style={{ marginTop: 8, overflow: 'hidden', maxWidth: '100%' }}>
-                  <StripeBuyButton
-                    buyButtonId={BUY_BUTTON_MAX_ID}
-                    clientReferenceId={user?.id}
-                    customerEmail={user?.email}
-                  />
-                </div>
-              )}
+              </a>
             </div>
           </div>
         )}
