@@ -370,12 +370,12 @@ export default function Landing() {
           </div>
         ) : (
           /* Fallback: Custom pricing cards with optional Buy Buttons */
-          <div className="pricing-cards" style={{ maxWidth: 960 }}>
+          <div className="pricing-cards" style={{ maxWidth: 960, alignItems: 'stretch' }}>
             {/* Free Tier */}
-            <div className="pricing-card">
+            <div className="pricing-card" style={{ display: 'flex', flexDirection: 'column' }}>
               <div className="pricing-tier">Free</div>
               <div className="pricing-price">$0<span className="pricing-period">/forever</span></div>
-              <ul className="pricing-list">
+              <ul className="pricing-list" style={{ flex: 1 }}>
                 <li className="pricing-item">&#10003; 3 resume generations/day</li>
                 <li className="pricing-item">&#10003; AI resume parsing</li>
                 <li className="pricing-item">&#10003; 5 job searches/day</li>
@@ -390,11 +390,11 @@ export default function Landing() {
             </div>
 
             {/* Pro Tier */}
-            <div className="pricing-card pro">
+            <div className="pricing-card pro" style={{ display: 'flex', flexDirection: 'column' }}>
               <div className="pro-badge">POPULAR</div>
               <div className="pricing-tier">Pro</div>
               <div className="pricing-price">$9<span className="pricing-period">/month</span></div>
-              <ul className="pricing-list">
+              <ul className="pricing-list" style={{ flex: 1 }}>
                 <li className="pricing-item">&#10003; 10 resume generations/day</li>
                 <li className="pricing-item">&#10003; 25 job searches/day</li>
                 <li className="pricing-item">&#10003; 5 resume tailors/day</li>
@@ -414,11 +414,11 @@ export default function Landing() {
             </div>
 
             {/* Max Tier */}
-            <div className="pricing-card" style={{ border: '1.5px solid var(--accent)', position: 'relative' }}>
-              <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', fontSize: 11, fontWeight: 700, padding: '3px 14px', borderRadius: 20, letterSpacing: 0.5 }}>MAX POWER</div>
+            <div className="pricing-card" style={{ border: '1.5px solid var(--accent)', display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
+              <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', fontSize: 11, fontWeight: 700, padding: '3px 14px', borderRadius: 20, letterSpacing: 0.5, whiteSpace: 'nowrap', zIndex: 1 }}>MAX POWER</div>
               <div className="pricing-tier">Max</div>
               <div className="pricing-price">$20<span className="pricing-period">/month</span></div>
-              <ul className="pricing-list">
+              <ul className="pricing-list" style={{ flex: 1 }}>
                 <li className="pricing-item">&#10003; <strong>Unlimited</strong> resume generations</li>
                 <li className="pricing-item">&#10003; <strong>Unlimited</strong> job searches</li>
                 <li className="pricing-item">&#10003; <strong>Unlimited</strong> resume tailoring</li>
