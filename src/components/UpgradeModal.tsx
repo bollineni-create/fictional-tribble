@@ -76,7 +76,7 @@ export default function UpgradeModal({ isOpen, onClose, showSuccess = false, def
   if (!isOpen) return null
 
   const planLabel = selectedPlan === 'max' ? 'Max' : 'Pro'
-  const planPrice = selectedPlan === 'max' ? '$19' : '$9'
+  const planPrice = selectedPlan === 'max' ? '$20' : '$9'
 
   return (
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}>
@@ -111,7 +111,7 @@ export default function UpgradeModal({ isOpen, onClose, showSuccess = false, def
                 }}
               >
                 <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--white)' }}>Max</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', margin: '4px 0' }}>$19<span style={{ fontSize: 13, fontWeight: 400 }}>/mo</span></div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', margin: '4px 0' }}>$20<span style={{ fontSize: 13, fontWeight: 400 }}>/mo</span></div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Unlimited everything, daily alerts, priority AI</div>
               </div>
             </div>

@@ -1,9 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import UpgradeModal from '../components/UpgradeModal'
+
+// Major US cities + popular global locations for autocomplete
+const LOCATIONS = [
+  'New York, NY', 'Los Angeles, CA', 'Chicago, IL', 'Houston, TX', 'Phoenix, AZ',
+  'Philadelphia, PA', 'San Antonio, TX', 'San Diego, CA', 'Dallas, TX', 'San Jose, CA',
+  'Austin, TX', 'Jacksonville, FL', 'Fort Worth, TX', 'Columbus, OH', 'Charlotte, NC',
+  'Indianapolis, IN', 'San Francisco, CA', 'Seattle, WA', 'Denver, CO', 'Nashville, TN',
+  'Washington, DC', 'Oklahoma City, OK', 'El Paso, TX', 'Boston, MA', 'Portland, OR',
+  'Las Vegas, NV', 'Memphis, TN', 'Louisville, KY', 'Baltimore, MD', 'Milwaukee, WI',
+  'Albuquerque, NM', 'Tucson, AZ', 'Fresno, CA', 'Mesa, AZ', 'Sacramento, CA',
+  'Atlanta, GA', 'Kansas City, MO', 'Omaha, NE', 'Colorado Springs, CO', 'Raleigh, NC',
+  'Virginia Beach, VA', 'Long Beach, CA', 'Miami, FL', 'Oakland, CA', 'Minneapolis, MN',
+  'Tampa, FL', 'Tulsa, OK', 'Arlington, TX', 'New Orleans, LA', 'Cleveland, OH',
+  'Pittsburgh, PA', 'Orlando, FL', 'Cincinnati, OH', 'St. Louis, MO', 'Detroit, MI',
+  'Salt Lake City, UT', 'Honolulu, HI', 'Boise, ID', 'Richmond, VA', 'Des Moines, IA',
+  'Remote', 'London, UK', 'Toronto, Canada', 'Vancouver, Canada', 'Berlin, Germany',
+  'Dublin, Ireland', 'Amsterdam, Netherlands', 'Singapore', 'Sydney, Australia',
+  'Bangalore, India', 'Tel Aviv, Israel',
+]
 
 interface Job {
   id: string
@@ -58,6 +77,12 @@ export default function JobSearch() {
   const [desiredLocation, setDesiredLocation] = useState('')
   const [hasProfile, setHasProfile] = useState(false)
 
+  // Location autocomplete
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([])
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const locationRef = useRef<HTMLDivElement>(null)
+
   // Saved jobs
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
   const [savingJobId, setSavingJobId] = useState<string | null>(null)
@@ -67,6 +92,61 @@ export default function JobSearch() {
     loadUserProfile()
     loadSavedJobs()
   }, [user])
+
+  // Close location dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (locationRef.current && !locationRef.current.contains(e.target as Node)) {
+        setShowLocationDropdown(false)
+      }
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [])
+
+  const handleLocationChange = (value: string) => {
+    setLocation(value)
+    setHighlightedIndex(-1)
+    if (value.trim().length >= 2) {
+      const lower = value.toLowerCase()
+      const matches = LOCATIONS.filter(loc => loc.toLowerCase().includes(lower)).slice(0, 8)
+      setLocationSuggestions(matches)
+      setShowLocationDropdown(matches.length > 0)
+    } else {
+      setLocationSuggestions([])
+      setShowLocationDropdown(false)
+    }
+  }
+
+  const selectLocation = (loc: string) => {
+    setLocation(loc)
+    setShowLocationDropdown(false)
+    setLocationSuggestions([])
+  }
+
+  const handleLocationKeyDown = (e: React.KeyboardEvent) => {
+    if (!showLocationDropdown || locationSuggestions.length === 0) {
+      if (e.key === 'Enter') searchJobs()
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightedIndex(prev => Math.min(prev + 1, locationSuggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightedIndex(prev => Math.max(prev - 1, -1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (highlightedIndex >= 0) {
+        selectLocation(locationSuggestions[highlightedIndex])
+      } else {
+        setShowLocationDropdown(false)
+        searchJobs()
+      }
+    } else if (e.key === 'Escape') {
+      setShowLocationDropdown(false)
+    }
+  }
 
   const loadUserProfile = async () => {
     if (!user) return
@@ -267,14 +347,42 @@ export default function JobSearch() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && searchJobs()}
           />
-          <input
-            className="input"
-            style={{ flex: 1, minWidth: 150 }}
-            placeholder="Location (optional)"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && searchJobs()}
-          />
+          <div ref={locationRef} style={{ flex: 1, minWidth: 150, position: 'relative' }}>
+            <input
+              className="input"
+              style={{ width: '100%' }}
+              placeholder="City, state, or 'Remote'"
+              value={location}
+              onChange={(e) => handleLocationChange(e.target.value)}
+              onKeyDown={handleLocationKeyDown}
+              onFocus={() => { if (locationSuggestions.length > 0) setShowLocationDropdown(true) }}
+            />
+            {showLocationDropdown && locationSuggestions.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: '0 0 10px 10px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                maxHeight: 240, overflowY: 'auto',
+              }}>
+                {locationSuggestions.map((loc, i) => (
+                  <div
+                    key={loc}
+                    onClick={() => selectLocation(loc)}
+                    style={{
+                      padding: '10px 14px', cursor: 'pointer', fontSize: 14,
+                      color: 'var(--text)',
+                      background: i === highlightedIndex ? 'var(--accent-glow)' : 'transparent',
+                      borderBottom: i < locationSuggestions.length - 1 ? '1px solid var(--border)' : 'none',
+                    }}
+                    onMouseEnter={() => setHighlightedIndex(i)}
+                  >
+                    <span style={{ marginRight: 8, fontSize: 12, opacity: 0.5 }}>&#128205;</span>
+                    {loc}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <button className="btn-primary" onClick={() => searchJobs()} disabled={loading} style={{ padding: '12px 24px' }}>
             {loading ? 'Searching...' : 'Search'}
           </button>

@@ -16,8 +16,9 @@ const FEATURES = [
     title: 'AI-Powered Resume Builder',
     desc: 'Upload your resume in any format. Our AI parses your experience, asks clarifying questions, and generates a polished, uniform professional document — ready to send.',
     bullets: ['Upload PDF or DOCX', 'AI extracts skills, education & experience', 'Generates clean, uniform format', 'One-click export to DOCX & PDF'],
-    cta: 'Build Your Resume',
-    route: '/onboard',
+    tierNote: 'Free: 3/day · Pro: 10/day · Max: Unlimited',
+    cta: 'Get Started Free',
+    route: '/app',
   },
   {
     key: 'tailor',
@@ -26,6 +27,7 @@ const FEATURES = [
     title: 'Tailor for Every Job',
     desc: 'Paste any job listing and get a tailored version of your resume in seconds. See exactly what changed, why it matters, and where you have skill gaps.',
     bullets: ['One-click tailoring per listing', 'Side-by-side diff view', 'Gap analysis & suggestions', 'ATS optimization score'],
+    tierNote: 'Free: 1/day · Pro: 5/day · Max: Unlimited',
     cta: 'Try Tailoring',
     route: '/onboard',
   },
@@ -36,6 +38,7 @@ const FEATURES = [
     title: 'Smart Job Search & Matching',
     desc: 'Search thousands of real listings from top job boards. Every result is scored against your profile so you can focus on jobs where you\'re the best fit.',
     bullets: ['Thousands of live listings', 'AI match scoring per job', 'Save & track applications', 'Filter by role, location, salary'],
+    tierNote: 'Free: 5/day · Pro: 25/day · Max: Unlimited',
     cta: 'Search Jobs',
     route: '/jobs',
   },
@@ -46,6 +49,7 @@ const FEATURES = [
     title: 'Your Career Inbox',
     desc: 'Get a dedicated email address for all your job applications. Every message — recruiter replies, interview invites, offers — organized in one secure place.',
     bullets: ['Dedicated career email', 'Auto-linked to applications', 'Inbound & outbound tracking', 'Never lose a recruiter reply'],
+    tierNote: 'Pro & Max only',
     cta: 'Open Inbox',
     route: '/inbox',
   },
@@ -56,6 +60,7 @@ const FEATURES = [
     title: 'AI Interview Prep',
     desc: 'Get personalized interview questions based on the role, company briefs with insider context, and salary negotiation tips — all tailored to your skill gaps.',
     bullets: ['Role-specific questions', 'Company research briefs', 'Salary & negotiation tips', 'Personalized to your gaps'],
+    tierNote: 'Free: 1/day · Pro: 5/day · Max: Unlimited',
     cta: 'Start Prepping',
     route: '/interview',
   },
@@ -66,6 +71,7 @@ const FEATURES = [
     title: 'Smart Job Alerts',
     desc: 'Set your preferences — target roles, locations, salary range — and get notified when better opportunities appear. Daily, weekly, or monthly digests.',
     bullets: ['Custom keyword & location filters', 'Salary range targeting', 'Daily, weekly, or monthly', 'Evolves with your career'],
+    tierNote: 'Pro: Weekly/Monthly · Max: Daily alerts',
     cta: 'Set Preferences',
     route: '/preferences',
   },
@@ -301,6 +307,15 @@ export default function Landing() {
                 >
                   {f.cta}
                 </button>
+                {f.tierNote && (
+                  <div style={{
+                    marginTop: 12, fontSize: 12, color: 'var(--text-muted)',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <span style={{ color: 'var(--accent)', fontSize: 11 }}>&#9670;</span>
+                    {f.tierNote}
+                  </div>
+                )}
               </div>
 
               {/* Right: bullet list */}
