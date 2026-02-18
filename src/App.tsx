@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './components/Toast'
 import Landing from './pages/Landing'
+import Dashboard from './pages/Dashboard'
 import ResumeBuilder from './pages/ResumeBuilder'
 import JobSearch from './pages/JobSearch'
 import ApplicationTracker from './pages/ApplicationTracker'
@@ -17,6 +18,7 @@ export default function App() {
         <ToastProvider>
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/app" element={<ResumeBuilder />} />
             <Route path="/onboard" element={<Onboard />} />
             <Route path="/jobs" element={<JobSearch />} />

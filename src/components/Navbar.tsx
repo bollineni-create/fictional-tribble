@@ -76,6 +76,7 @@ export default function Navbar({ onViewSavedResume }: NavbarProps) {
                 <div className="user-dropdown-item" style={{ fontWeight: 600, cursor: 'default' }}>{user.email}</div>
                 {isMax && <div className="user-dropdown-item pro-badge-item">&#128293; Max Member</div>}
                 {isPro && !isMax && <div className="user-dropdown-item pro-badge-item">&#11088; Pro Member</div>}
+                <button className="user-dropdown-item" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); navigate('/dashboard') }}>&#9670; Dashboard</button>
                 <button className="user-dropdown-item" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setSavedOpen(true) }}>&#128196; My Resumes</button>
                 <button className="user-dropdown-item" onClick={(e) => { e.stopPropagation(); handleLogout() }}>&#8617; Log Out</button>
               </div>

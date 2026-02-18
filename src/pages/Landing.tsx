@@ -84,6 +84,15 @@ export default function Landing() {
   const [checkoutSuccess, setCheckoutSuccess] = useState(false)
   const [activeTab, setActiveTab] = useState(0)
 
+  // Redirect logged-in users to dashboard (unless returning from Stripe)
+  useEffect(() => {
+    const sessionId = searchParams.get('session_id')
+    const success = searchParams.get('success')
+    if (!sessionId && success !== 'true' && user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [user])
+
   // Detect return from Stripe Checkout / Payment Link
   useEffect(() => {
     const sessionId = searchParams.get('session_id')
