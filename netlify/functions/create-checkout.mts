@@ -1,5 +1,18 @@
 import type { Context, Config } from "@netlify/functions";
 
+/**
+ * Create a Stripe Checkout Session
+ *
+ * Supports two modes:
+ * - embedded (default): Returns clientSecret for Stripe.js embedded checkout
+ * - hosted: Returns URL for Stripe-hosted checkout page (redirect)
+ *
+ * Body params:
+ * - plan: "pro" | "max" (default: "pro")
+ * - mode: "embedded" | "hosted" (default: "embedded")
+ * - customerEmail: optional email to prefill
+ */
+
 export default async (req: Request, context: Context) => {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -28,6 +41,8 @@ export default async (req: Request, context: Context) => {
   }
 
   const plan = body.plan || "pro";
+  const uiMode = body.mode || "embedded";
+  const customerEmail = body.customerEmail || "";
   let priceId: string;
 
   if (plan === "max" && maxPriceId) {
@@ -42,15 +57,26 @@ export default async (req: Request, context: Context) => {
   }
 
   try {
+    const origin = new URL(req.url).origin;
     const params = new URLSearchParams();
     params.append("mode", "subscription");
     params.append("line_items[0][price]", priceId);
     params.append("line_items[0][quantity]", "1");
-    params.append("ui_mode", "embedded");
     // Pass the plan as metadata so the webhook can set the tier
     params.append("subscription_data[metadata][plan]", plan);
-    const origin = new URL(req.url).origin;
-    params.append("return_url", `${origin}/?session_id={CHECKOUT_SESSION_ID}`);
+
+    if (uiMode === "hosted") {
+      // Hosted mode: Stripe-hosted checkout page with redirect
+      params.append("success_url", `${origin}/?success=true&session_id={CHECKOUT_SESSION_ID}`);
+      params.append("cancel_url", `${origin}/#pricing-anchor`);
+      if (customerEmail) {
+        params.append("customer_email", customerEmail);
+      }
+    } else {
+      // Embedded mode: Returns client_secret for Stripe.js
+      params.append("ui_mode", "embedded");
+      params.append("return_url", `${origin}/?session_id={CHECKOUT_SESSION_ID}`);
+    }
 
     const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -71,6 +97,13 @@ export default async (req: Request, context: Context) => {
     }
 
     const session = await response.json();
+
+    if (uiMode === "hosted") {
+      return new Response(
+        JSON.stringify({ url: session.url }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
       JSON.stringify({ clientSecret: session.client_secret }),

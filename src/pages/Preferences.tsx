@@ -4,9 +4,10 @@ import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import AuthModal from '../components/AuthModal'
+import CustomerPortalButton from '../components/CustomerPortalButton'
 
 export default function Preferences() {
-  const { user } = useAuth()
+  const { user, isPro, isMax, tier } = useAuth()
   const { showToast } = useToast()
   const [authOpen, setAuthOpen] = useState(false)
 
@@ -245,6 +246,48 @@ export default function Preferences() {
         <button className="generate-btn" onClick={savePreferences} disabled={saving} style={{ marginTop: 32 }}>
           {saving ? 'Saving...' : '&#128190; Save Preferences'}
         </button>
+
+        {/* Subscription Management */}
+        <div style={{
+          marginTop: 40, padding: 24, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: 14,
+        }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--white)', marginBottom: 8 }}>
+            &#128179; Subscription & Billing
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+            {isPro
+              ? `You're on the ${isMax ? 'Max' : 'Pro'} plan. Manage your subscription, update payment methods, or download invoices.`
+              : 'You\'re on the Free plan. Upgrade to unlock more features.'}
+          </p>
+          {isPro ? (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <CustomerPortalButton
+                label="Manage Subscription"
+                style={{
+                  padding: '10px 20px', borderRadius: 10, fontSize: 14,
+                  background: 'var(--accent)', color: '#000', border: 'none',
+                  cursor: 'pointer', fontWeight: 600,
+                }}
+              />
+              <div style={{
+                padding: '10px 16px', borderRadius: 10, fontSize: 13,
+                background: 'var(--accent-glow)', color: 'var(--accent)',
+                border: '1px solid var(--accent)', display: 'flex', alignItems: 'center',
+              }}>
+                {isMax ? '🔥 Max' : '⭐ Pro'} — Active
+              </div>
+            </div>
+          ) : (
+            <Link to="/#pricing-anchor" style={{
+              display: 'inline-block', padding: '10px 20px', borderRadius: 10,
+              fontSize: 14, background: 'var(--accent)', color: '#000',
+              textDecoration: 'none', fontWeight: 600,
+            }}>
+              View Plans
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   )
