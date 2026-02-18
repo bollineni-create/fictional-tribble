@@ -270,7 +270,7 @@ export default function Landing() {
                 <li className="pricing-item">&#10003; Weekly/monthly job alerts</li>
               </ul>
               {BUY_BUTTON_PRO_ID ? (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                <div style={{ marginTop: 8, overflow: 'hidden', maxWidth: '100%' }}>
                   <StripeBuyButton
                     buyButtonId={BUY_BUTTON_PRO_ID}
                     clientReferenceId={user?.id}
@@ -296,7 +296,7 @@ export default function Landing() {
             <div className="pricing-card" style={{ border: '1.5px solid var(--accent)', position: 'relative' }}>
               <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', fontSize: 11, fontWeight: 700, padding: '3px 14px', borderRadius: 20, letterSpacing: 0.5 }}>MAX POWER</div>
               <div className="pricing-tier">Max</div>
-              <div className="pricing-price">$19<span className="pricing-period">/month</span></div>
+              <div className="pricing-price">$20<span className="pricing-period">/month</span></div>
               <ul className="pricing-list">
                 <li className="pricing-item">&#10003; <strong>Unlimited</strong> resume generations</li>
                 <li className="pricing-item">&#10003; <strong>Unlimited</strong> job searches</li>
@@ -309,7 +309,7 @@ export default function Landing() {
                 <li className="pricing-item">&#10003; Priority AI processing</li>
               </ul>
               {BUY_BUTTON_MAX_ID ? (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                <div style={{ marginTop: 8, overflow: 'hidden', maxWidth: '100%' }}>
                   <StripeBuyButton
                     buyButtonId={BUY_BUTTON_MAX_ID}
                     clientReferenceId={user?.id}
