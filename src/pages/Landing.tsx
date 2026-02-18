@@ -390,8 +390,8 @@ export default function Landing() {
             </div>
 
             {/* Pro Tier */}
-            <div className="pricing-card pro" style={{ display: 'flex', flexDirection: 'column' }}>
-              <div className="pro-badge">POPULAR</div>
+            <div className="pricing-card pro" style={{ display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
+              <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'rgba(201,169,110,0.15)', color: 'var(--accent)', fontSize: 11, fontWeight: 700, padding: '3px 14px', borderRadius: 20, letterSpacing: 0.5, whiteSpace: 'nowrap', zIndex: 1, border: '1px solid rgba(201,169,110,0.4)' }}>POPULAR</div>
               <div className="pricing-tier">Pro</div>
               <div className="pricing-price">$9<span className="pricing-period">/month</span></div>
               <ul className="pricing-list" style={{ flex: 1 }}>
@@ -403,6 +403,7 @@ export default function Landing() {
                 <li className="pricing-item">&#10003; Export to DOCX &amp; PDF</li>
                 <li className="pricing-item">&#10003; Career inbox &amp; email</li>
                 <li className="pricing-item">&#10003; Weekly/monthly job alerts</li>
+                <li className="pricing-item" style={{ color: 'var(--text-muted)', textDecoration: 'line-through' }}>&#10007; Priority AI processing</li>
               </ul>
               <a
                 href={`${PAYMENT_LINK_PRO}${user?.email ? `?prefilled_email=${encodeURIComponent(user.email)}` : ''}`}
@@ -415,7 +416,7 @@ export default function Landing() {
 
             {/* Max Tier */}
             <div className="pricing-card" style={{ border: '1.5px solid var(--accent)', display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
-              <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', fontSize: 11, fontWeight: 700, padding: '3px 14px', borderRadius: 20, letterSpacing: 0.5, whiteSpace: 'nowrap', zIndex: 1 }}>MAX POWER</div>
+              <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', fontSize: 11, fontWeight: 700, padding: '4px 16px', borderRadius: 20, letterSpacing: 0.5, whiteSpace: 'nowrap', zIndex: 1 }}>MAX POWER</div>
               <div className="pricing-tier">Max</div>
               <div className="pricing-price">$20<span className="pricing-period">/month</span></div>
               <ul className="pricing-list" style={{ flex: 1 }}>
