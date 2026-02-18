@@ -194,7 +194,6 @@ export default function Landing() {
               fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 16, maxWidth: 380,
             }}>
               Unlimited resume tailoring, 25 daily job searches, career inbox, interview prep, and export to DOCX/PDF.
-              No credit card required to start.
             </p>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
