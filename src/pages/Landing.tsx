@@ -7,8 +7,8 @@ import { useAuth } from '../context/AuthContext'
 
 const PAYMENT_LINK_PRO = import.meta.env.VITE_STRIPE_PAYMENT_LINK_PRO || ''
 const PAYMENT_LINK_MAX = import.meta.env.VITE_STRIPE_PAYMENT_LINK_MAX || ''
-const BUY_BUTTON_PRO_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_PRO_ID || ''
-const BUY_BUTTON_MAX_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_MAX_ID || ''
+const BUY_BUTTON_PRO_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_PRO_ID || 'buy_btn_1T25wHFyD3IgcpECsEtexQGo'
+const BUY_BUTTON_MAX_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_MAX_ID || 'buy_btn_1T25wyFyD3IgcpECMrHbuEz3'
 const PRICING_TABLE_ID = import.meta.env.VITE_STRIPE_PRICING_TABLE_ID || ''
 
 export default function Landing() {
@@ -47,6 +47,105 @@ export default function Landing() {
           <button className="btn-secondary" onClick={() => navigate('/jobs')}>Browse Jobs</button>
         </div>
         <p className="hero-note">Upload your resume &middot; AI extracts your info &middot; Tailored for every job</p>
+      </div>
+
+      {/* 30-Day Free Trial Banner */}
+      <div style={{
+        maxWidth: 800, margin: '0 auto 48px', padding: 0,
+        background: 'linear-gradient(135deg, rgba(201,169,110,0.12) 0%, rgba(201,169,110,0.04) 100%)',
+        border: '1.5px solid rgba(201,169,110,0.3)', borderRadius: 18,
+        overflow: 'hidden', position: 'relative',
+      }}>
+        {/* Decorative accent line at top */}
+        <div style={{
+          height: 3, background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
+          width: '100%',
+        }} />
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 32,
+          padding: '32px 36px', flexWrap: 'wrap', justifyContent: 'center',
+        }}>
+          {/* Left: Trial graphic / icon cluster */}
+          <div style={{
+            flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            minWidth: 120,
+          }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: '50%',
+              background: 'linear-gradient(135deg, var(--accent), var(--accent-dark))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 30px rgba(201,169,110,0.25)',
+              position: 'relative',
+            }}>
+              <span style={{ fontSize: 36, lineHeight: 1, filter: 'brightness(0)' }}>&#128640;</span>
+              {/* Orbiting dots */}
+              <div style={{
+                position: 'absolute', width: 100, height: 100,
+                animation: 'spin 8s linear infinite',
+              }}>
+                <div style={{
+                  position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)',
+                  width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', opacity: 0.6,
+                }} />
+                <div style={{
+                  position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)',
+                  width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', opacity: 0.4,
+                }} />
+              </div>
+            </div>
+            <div style={{
+              marginTop: 12, fontFamily: 'var(--display)', fontSize: 28, fontWeight: 700,
+              color: 'var(--accent)', lineHeight: 1,
+            }}>
+              30
+            </div>
+            <div style={{
+              fontSize: 11, fontWeight: 600, color: 'var(--accent)', letterSpacing: 1.5,
+              textTransform: 'uppercase',
+            }}>
+              Days Free
+            </div>
+          </div>
+
+          {/* Right: Copy + CTA */}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div style={{
+              display: 'inline-block', background: 'rgba(201,169,110,0.2)', color: 'var(--accent)',
+              fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
+              letterSpacing: 0.8, marginBottom: 10, textTransform: 'uppercase',
+            }}>
+              Limited Time Offer
+            </div>
+            <h3 style={{
+              fontFamily: 'var(--display)', fontSize: 22, fontWeight: 700,
+              color: 'var(--white)', marginBottom: 8, lineHeight: 1.3,
+            }}>
+              Try Pro Free for 30 Days
+            </h3>
+            <p style={{
+              fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 16, maxWidth: 380,
+            }}>
+              Unlimited resume tailoring, 25 daily job searches, career inbox, interview prep, and export to DOCX/PDF.
+              No credit card required to start.
+            </p>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  const el = document.getElementById('pricing-anchor')
+                  if (el) el.scrollIntoView({ behavior: 'smooth' })
+                }}
+                style={{ fontSize: 14, padding: '12px 24px' }}
+              >
+                Start Free Trial
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Cancel anytime &middot; No commitment
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* How It Works */}
