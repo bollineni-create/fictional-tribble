@@ -11,11 +11,75 @@ const BUY_BUTTON_PRO_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_PRO_ID || 'buy_
 const BUY_BUTTON_MAX_ID = import.meta.env.VITE_STRIPE_BUY_BUTTON_MAX_ID || 'buy_btn_1T25wyFyD3IgcpECMrHbuEz3'
 const PRICING_TABLE_ID = import.meta.env.VITE_STRIPE_PRICING_TABLE_ID || ''
 
+const FEATURES = [
+  {
+    key: 'resume',
+    icon: '\u26A1',
+    tab: 'Smart Resume Builder',
+    title: 'AI-Powered Resume Builder',
+    desc: 'Upload your resume in any format. Our AI parses your experience, asks clarifying questions, and generates a polished, uniform professional document — ready to send.',
+    bullets: ['Upload PDF or DOCX', 'AI extracts skills, education & experience', 'Generates clean, uniform format', 'One-click export to DOCX & PDF'],
+    cta: 'Build Your Resume',
+    route: '/onboard',
+  },
+  {
+    key: 'tailor',
+    icon: '\uD83D\uDD27',
+    tab: 'Resume Tailoring',
+    title: 'Tailor for Every Job',
+    desc: 'Paste any job listing and get a tailored version of your resume in seconds. See exactly what changed, why it matters, and where you have skill gaps.',
+    bullets: ['One-click tailoring per listing', 'Side-by-side diff view', 'Gap analysis & suggestions', 'ATS optimization score'],
+    cta: 'Try Tailoring',
+    route: '/onboard',
+  },
+  {
+    key: 'jobs',
+    icon: '\uD83D\uDD0D',
+    tab: 'Job Search',
+    title: 'Smart Job Search & Matching',
+    desc: 'Search thousands of real listings from top job boards. Every result is scored against your profile so you can focus on jobs where you\'re the best fit.',
+    bullets: ['Thousands of live listings', 'AI match scoring per job', 'Save & track applications', 'Filter by role, location, salary'],
+    cta: 'Search Jobs',
+    route: '/jobs',
+  },
+  {
+    key: 'inbox',
+    icon: '\uD83D\uDCEC',
+    tab: 'Career Inbox',
+    title: 'Your Career Inbox',
+    desc: 'Get a dedicated email address for all your job applications. Every message — recruiter replies, interview invites, offers — organized in one secure place.',
+    bullets: ['Dedicated career email', 'Auto-linked to applications', 'Inbound & outbound tracking', 'Never lose a recruiter reply'],
+    cta: 'Open Inbox',
+    route: '/inbox',
+  },
+  {
+    key: 'interview',
+    icon: '\uD83C\uDF93',
+    tab: 'Interview Prep',
+    title: 'AI Interview Prep',
+    desc: 'Get personalized interview questions based on the role, company briefs with insider context, and salary negotiation tips — all tailored to your skill gaps.',
+    bullets: ['Role-specific questions', 'Company research briefs', 'Salary & negotiation tips', 'Personalized to your gaps'],
+    cta: 'Start Prepping',
+    route: '/interview',
+  },
+  {
+    key: 'alerts',
+    icon: '\uD83D\uDD14',
+    tab: 'Job Alerts',
+    title: 'Smart Job Alerts',
+    desc: 'Set your preferences — target roles, locations, salary range — and get notified when better opportunities appear. Daily, weekly, or monthly digests.',
+    bullets: ['Custom keyword & location filters', 'Salary range targeting', 'Daily, weekly, or monthly', 'Evolves with your career'],
+    cta: 'Set Preferences',
+    route: '/preferences',
+  },
+]
+
 export default function Landing() {
   const navigate = useNavigate()
   const { user, isPro, isMax, tier } = useAuth()
   const [searchParams] = useSearchParams()
   const [checkoutSuccess, setCheckoutSuccess] = useState(false)
+  const [activeTab, setActiveTab] = useState(0)
 
   // Detect return from Stripe Checkout / Payment Link
   useEffect(() => {
@@ -173,36 +237,161 @@ export default function Landing() {
         </div>
       </div>
 
-      <div className="features">
-        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/onboard')}>
-          <div className="feature-icon">&#9889;</div>
-          <div className="feature-title">Smart Resume Builder</div>
-          <div className="feature-desc">Upload your resume, AI parses it, ask you questions, and generates a uniform professional document.</div>
+      {/* Tabbed Features */}
+      <div style={{ padding: '40px 0 60px', borderTop: '1px solid var(--border)' }}>
+        <h2 className="section-title" style={{ marginBottom: 28 }}>Everything You Need</h2>
+
+        {/* Tab bar */}
+        <div style={{
+          display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap',
+          marginBottom: 32, padding: '0 8px',
+        }}>
+          {FEATURES.map((f, i) => (
+            <button
+              key={f.key}
+              onClick={() => setActiveTab(i)}
+              style={{
+                background: activeTab === i ? 'var(--accent)' : 'var(--surface)',
+                color: activeTab === i ? '#1a1a1a' : 'var(--text-muted)',
+                border: activeTab === i ? 'none' : '1px solid var(--border)',
+                borderRadius: 10, padding: '10px 18px',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'var(--font)', transition: 'all 0.2s',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span style={{ marginRight: 6 }}>{f.icon}</span>
+              {f.tab}
+            </button>
+          ))}
         </div>
-        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/jobs')}>
-          <div className="feature-icon">&#128269;</div>
-          <div className="feature-title">Job Search & Matching</div>
-          <div className="feature-desc">Search thousands of listings. Each job is scored against your profile for the best fit.</div>
-        </div>
-        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/onboard')}>
-          <div className="feature-icon">&#128295;</div>
-          <div className="feature-title">Resume Tailoring</div>
-          <div className="feature-desc">One-click tailoring for any job listing. See what changed and why, with gap analysis.</div>
-        </div>
-        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/inbox')}>
-          <div className="feature-icon">&#128236;</div>
-          <div className="feature-title">Career Inbox</div>
-          <div className="feature-desc">Get a dedicated email for job applications. All correspondence in one secure place.</div>
-        </div>
-        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/interview')}>
-          <div className="feature-icon">&#127891;</div>
-          <div className="feature-title">Interview Prep</div>
-          <div className="feature-desc">AI-generated questions, company briefs, and salary tips — personalized to your gaps.</div>
-        </div>
-        <div className="feature-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/preferences')}>
-          <div className="feature-icon">&#128276;</div>
-          <div className="feature-title">Monthly Job Alerts</div>
-          <div className="feature-desc">Set preferences and get notified about better opportunities as your career evolves.</div>
+
+        {/* Tab content panel */}
+        {(() => {
+          const f = FEATURES[activeTab]
+          return (
+            <div style={{
+              maxWidth: 800, margin: '0 auto',
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 18, padding: '40px 44px',
+              display: 'flex', gap: 36, alignItems: 'flex-start', flexWrap: 'wrap',
+            }}>
+              {/* Left: icon + title + desc */}
+              <div style={{ flex: '1 1 300px' }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: 14,
+                  background: 'var(--accent-glow)', border: '1px solid rgba(201,169,110,0.25)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 28, marginBottom: 16,
+                }}>
+                  {f.icon}
+                </div>
+                <h3 style={{
+                  fontFamily: 'var(--display)', fontSize: 24, fontWeight: 700,
+                  color: 'var(--white)', marginBottom: 12, lineHeight: 1.3,
+                }}>
+                  {f.title}
+                </h3>
+                <p style={{
+                  fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 20,
+                }}>
+                  {f.desc}
+                </p>
+                <button
+                  className="btn-primary"
+                  onClick={() => navigate(f.route)}
+                  style={{ fontSize: 14, padding: '11px 22px' }}
+                >
+                  {f.cta}
+                </button>
+              </div>
+
+              {/* Right: bullet list */}
+              <div style={{ flex: '0 0 220px', paddingTop: 8 }}>
+                {f.bullets.map((b, j) => (
+                  <div key={j} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    marginBottom: 14,
+                  }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      background: 'var(--accent-glow)', border: '1px solid rgba(201,169,110,0.3)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, color: 'var(--accent)', fontWeight: 700, marginTop: 1,
+                    }}>
+                      &#10003;
+                    </div>
+                    <span style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.5 }}>{b}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* Three Pillars Showcase — above pricing */}
+      <div style={{ maxWidth: 900, margin: '0 auto 56px', padding: '0 20px' }}>
+        <h2 className="section-title" style={{ marginBottom: 12 }}>Beyond the Resume</h2>
+        <p style={{
+          textAlign: 'center', color: 'var(--text-muted)', fontSize: 15,
+          maxWidth: 520, margin: '0 auto 36px', lineHeight: 1.6,
+        }}>
+          ResumeAI doesn't stop at building your resume. We power your entire job search.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          {[
+            {
+              icon: '\uD83D\uDD0D', title: 'Smart Job Search',
+              desc: 'AI-scored listings matched to your profile. Filter by role, location, and salary — apply with confidence.',
+              route: '/jobs',
+            },
+            {
+              icon: '\uD83D\uDCEC', title: 'Career Inbox',
+              desc: 'A dedicated email for your applications. Every recruiter reply, interview invite, and offer in one place.',
+              route: '/inbox',
+            },
+            {
+              icon: '\uD83C\uDF93', title: 'Interview Prep',
+              desc: 'Personalized questions, company research, and salary insights — tailored to your gaps and target role.',
+              route: '/interview',
+            },
+          ].map((p) => (
+            <div
+              key={p.title}
+              onClick={() => navigate(p.route)}
+              style={{
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 16, padding: '28px 24px', cursor: 'pointer',
+                transition: 'border-color 0.2s, transform 0.15s',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent)'
+                ;(e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)'
+                ;(e.currentTarget as HTMLDivElement).style.transform = 'none'
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 12 }}>{p.icon}</div>
+              <div style={{
+                fontFamily: 'var(--display)', fontSize: 18, fontWeight: 700,
+                color: 'var(--white)', marginBottom: 8,
+              }}>
+                {p.title}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                {p.desc}
+              </div>
+              <div style={{
+                marginTop: 14, fontSize: 13, fontWeight: 600, color: 'var(--accent)',
+              }}>
+                Learn more &rarr;
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
