@@ -56,7 +56,7 @@ export default function Navbar({ onViewSavedResume }: NavbarProps) {
   return (
     <>
       <nav className="nav">
-        <Link className="logo" to="/">
+        <Link className="logo" to={user ? '/dashboard' : '/'}>
           <span className="logo-icon">&#9670;</span>
           <span className="logo-text">ResumeAI</span>
         </Link>
