@@ -91,7 +91,7 @@ export default function Inbox() {
     try {
       const result = await withTimeout(
         Promise.resolve(
-          supabase.from('messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
+          supabase.from('inbox_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
         ), 10000
       )
       if (result.data) setMessages(result.data as Message[])
@@ -101,7 +101,7 @@ export default function Inbox() {
 
   const markRead = async (msg: Message) => {
     if (msg.is_read) return
-    await supabase.from('messages').update({ is_read: true }).eq('id', msg.id)
+    await supabase.from('inbox_messages').update({ is_read: true }).eq('id', msg.id)
     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m))
   }
 
