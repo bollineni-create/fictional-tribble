@@ -44,6 +44,20 @@ interface HonorsGroup {
   value: string;
 }
 
+interface ProjectEntry {
+  name: string;
+  technologies?: string;
+  description?: string;
+  url?: string;
+  dates?: string;
+}
+
+interface CertificationEntry {
+  name: string;
+  org?: string;
+  date?: string;
+}
+
 interface ResumeData {
   fullName: string;
   email?: string;
@@ -55,6 +69,8 @@ interface ResumeData {
   leadership?: ExperienceEntry[];
   education?: EducationEntry[];
   publications?: PublicationEntry[];
+  projects?: ProjectEntry[];
+  certifications?: CertificationEntry[];
   honors?: HonorsGroup[];
   skills?: SkillsGroup[];
   customSections?: { heading: string; content: string }[];
@@ -178,6 +194,20 @@ function generateStructuredHTML(data: ResumeData): string {
     }
   }
 
+  // ---- Projects ----
+  if (data.projects && data.projects.length > 0) {
+    bodyHtml += sectionHeader("PROJECTS");
+    for (const proj of data.projects) {
+      bodyHtml += `<div class="entry-header">
+  <span class="entry-company">${h(proj.name)}${proj.technologies ? ` <span style="font-weight:normal;font-style:italic">— ${h(proj.technologies)}</span>` : ''}</span>
+  ${proj.dates ? `<span class="entry-dates">${h(proj.dates)}</span>` : ''}
+</div>\n`;
+      if (proj.description) {
+        bodyHtml += `<div class="body-text">${h(proj.description)}</div>\n`;
+      }
+    }
+  }
+
   // ---- Honors & Awards ----
   if (data.honors && data.honors.length > 0) {
     bodyHtml += sectionHeader("HONORS & AWARDS");
@@ -186,9 +216,17 @@ function generateStructuredHTML(data: ResumeData): string {
     }
   }
 
-  // ---- Certifications & Skills ----
+  // ---- Certifications ----
+  if (data.certifications && data.certifications.length > 0) {
+    bodyHtml += sectionHeader("CERTIFICATIONS");
+    for (const cert of data.certifications) {
+      bodyHtml += `<div class="skills-line"><span class="skills-label">${h(cert.name)}:</span> ${h(cert.org || '')}${cert.date ? ` (${h(cert.date)})` : ''}</div>\n`;
+    }
+  }
+
+  // ---- Skills ----
   if (data.skills && data.skills.length > 0) {
-    bodyHtml += sectionHeader("CERTIFICATIONS & SKILLS");
+    bodyHtml += sectionHeader("SKILLS");
     for (const skill of data.skills) {
       bodyHtml += `<div class="skills-line"><span class="skills-label">${h(skill.label)}:</span> ${h(skill.value)}</div>\n`;
     }

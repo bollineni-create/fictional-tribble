@@ -9,13 +9,39 @@ import UpgradeModal from '../components/UpgradeModal'
 
 type Step = 'upload' | 'review' | 'target' | 'customize' | 'generate' | 'result'
 
+type SectionCategory = 'professional' | 'leadership' | 'publication' | 'project' | 'honor' | 'certification'
+
+const SECTION_LABELS: Record<SectionCategory, string> = {
+  professional: 'Professional Experience',
+  leadership: 'Leadership Experience',
+  publication: 'Publications',
+  project: 'Projects',
+  honor: 'Honors & Awards',
+  certification: 'Certifications',
+}
+
 interface Experience {
+  category: SectionCategory
   title: string
   company: string
   startDate: string
   endDate: string
   location: string
   bullets: string[]
+  // Publication fields
+  authors?: string
+  journal?: string
+  doi?: string
+  // Project fields
+  description?: string
+  technologies?: string
+  url?: string
+  // Honor/Award fields
+  issuer?: string
+  dateReceived?: string
+  // Certification fields
+  certOrg?: string
+  certDate?: string
 }
 
 interface Education {
@@ -30,6 +56,7 @@ interface ParsedProfile {
   email: string | null
   phone: string | null
   location: string | null
+  linkedin: string | null
   summary: string | null
   experience: Experience[]
   education: Education[]
@@ -58,7 +85,7 @@ export default function Onboard() {
 
   // Profile data
   const [profile, setProfile] = useState<ParsedProfile>({
-    fullName: '', email: null, phone: null, location: null, summary: null,
+    fullName: '', email: null, phone: null, location: null, linkedin: null, summary: null,
     experience: [], education: [], skills: [], certifications: [],
   })
   const [parsing, setParsing] = useState(false)
@@ -82,6 +109,9 @@ export default function Onboard() {
   const [resultContent, setResultContent] = useState('')
   const [exportLoading, setExportLoading] = useState(false)
 
+  // AI bullet enhancement tracking: "expIdx-bulletIdx"
+  const [enhancingBullet, setEnhancingBullet] = useState<string | null>(null)
+
   // Check for existing profile on mount
   useEffect(() => {
     if (!user) return
@@ -103,8 +133,9 @@ export default function Onboard() {
           email: d.email,
           phone: d.phone,
           location: d.location,
+          linkedin: d.linkedin || null,
           summary: d.summary,
-          experience: d.experience || [],
+          experience: (d.experience || []).map((e: any) => ({ ...e, category: e.category || 'professional' })),
           education: d.education || [],
           skills: d.skills || [],
           certifications: d.certifications || [],
@@ -131,6 +162,45 @@ export default function Onboard() {
       }
     } catch {}
     return headers
+  }
+
+  // ---- AI BULLET ENHANCEMENT ----
+  const enhanceBullet = async (expIdx: number, bulletIdx: number) => {
+    const key = `${expIdx}-${bulletIdx}`
+    const exp = profile.experience[expIdx]
+    const bullet = exp.bullets[bulletIdx]
+    if (!bullet?.trim()) return
+
+    setEnhancingBullet(key)
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch('/api/enhance-bullet', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          bullet: bullet.trim(),
+          jobTitle: exp.title,
+          company: exp.company,
+          targetRole: jobTitle.trim() || undefined,
+        }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error || 'Enhancement failed')
+      }
+      const data = await res.json()
+      if (data.enhanced) {
+        const updated = [...profile.experience]
+        const newBullets = [...updated[expIdx].bullets]
+        newBullets[bulletIdx] = data.enhanced
+        updated[expIdx] = { ...updated[expIdx], bullets: newBullets }
+        setProfile(p => ({ ...p, experience: updated }))
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Could not enhance bullet')
+    } finally {
+      setEnhancingBullet(null)
+    }
   }
 
   // ---- STEP 1: Upload ----
@@ -165,7 +235,12 @@ export default function Onboard() {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Parsing failed')
 
-      setProfile(data.profile)
+      // Ensure all parsed experiences have a default category
+      const parsedProfile = {
+        ...data.profile,
+        experience: (data.profile.experience || []).map((e: any) => ({ ...e, category: e.category || 'professional' })),
+      }
+      setProfile(parsedProfile)
       setSelectedSkills(data.profile.skills || [])
 
       // Auto-save the parsed resume to saved_resumes
@@ -227,9 +302,26 @@ export default function Onboard() {
           jobTitle: jobTitle.trim(),
           company: company.trim(),
           jobDescription: jobDescription.trim(),
-          experience: profile.experience.map(e =>
-            `${e.title} at ${e.company} (${e.startDate} - ${e.endDate}): ${e.bullets.join('. ')}`
-          ).join('\n'),
+          experience: profile.experience
+            .filter(e => e.category === 'professional' || e.category === 'leadership')
+            .map(e => `${e.title} at ${e.company} (${e.startDate} - ${e.endDate}): ${(e.bullets || []).filter(Boolean).join('. ')}`)
+            .join('\n'),
+          publications: profile.experience
+            .filter(e => e.category === 'publication')
+            .map(e => `${e.title}${e.authors ? `, ${e.authors}` : ''}${e.journal ? `, ${e.journal}` : ''}${e.startDate ? ` (${e.startDate})` : ''}`)
+            .join('\n'),
+          projects: profile.experience
+            .filter(e => e.category === 'project')
+            .map(e => `${e.title}${e.technologies ? ` [${e.technologies}]` : ''}${e.description ? `: ${e.description}` : ''}`)
+            .join('\n'),
+          honors: profile.experience
+            .filter(e => e.category === 'honor')
+            .map(e => `${e.title}${e.issuer ? `, ${e.issuer}` : ''}${e.dateReceived ? ` (${e.dateReceived})` : ''}`)
+            .join('\n'),
+          certificationsList: profile.experience
+            .filter(e => e.category === 'certification')
+            .map(e => `${e.title}${e.certOrg ? `, ${e.certOrg}` : ''}${e.certDate ? ` (${e.certDate})` : ''}`)
+            .join('\n'),
           skills: selectedSkills.join(', '),
           education: profile.education.map(e =>
             `${e.degree}, ${e.school} (${e.year})`
@@ -432,8 +524,8 @@ export default function Onboard() {
               <input className="input" value={profile.phone || ''} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} />
             </div>
             <div className="form-group">
-              <label className="label">Location</label>
-              <input className="input" placeholder="e.g. Austin, TX" value={profile.location || ''} onChange={e => setProfile(p => ({ ...p, location: e.target.value }))} />
+              <label className="label">LinkedIn URL</label>
+              <input className="input" placeholder="e.g. linkedin.com/in/yourname" value={profile.linkedin || ''} onChange={e => setProfile(p => ({ ...p, linkedin: e.target.value }))} />
             </div>
           </div>
 
@@ -443,62 +535,201 @@ export default function Onboard() {
               <label className="label" style={{ margin: 0 }}>Experience</label>
               <button style={{ fontSize: 13, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}
                 onClick={() => setProfile(p => ({
-                  ...p, experience: [...p.experience, { title: '', company: '', startDate: '', endDate: '', location: '', bullets: [''] }]
+                  ...p, experience: [...p.experience, { category: 'professional', title: '', company: '', startDate: '', endDate: '', location: '', bullets: ['', '', ''] }]
                 }))}>
-                + Add Position
+                + Add Entry
               </button>
             </div>
-            {profile.experience.map((exp, i) => (
-              <div key={i} style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 12, padding: 16, marginBottom: 12,
-              }}>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label className="label" style={{ fontSize: 12 }}>Job Title</label>
-                    <input className="input" value={exp.title} onChange={e => {
-                      const updated = [...profile.experience]
-                      updated[i] = { ...updated[i], title: e.target.value }
-                      setProfile(p => ({ ...p, experience: updated }))
-                    }} />
+            {profile.experience.map((exp, i) => {
+              const cat = exp.category || 'professional'
+              const updateExp = (fields: Partial<Experience>) => {
+                const updated = [...profile.experience]
+                updated[i] = { ...updated[i], ...fields }
+                setProfile(p => ({ ...p, experience: updated }))
+              }
+              const removeExp = () => {
+                setProfile(p => ({ ...p, experience: p.experience.filter((_, j) => j !== i) }))
+              }
+              const hasBullets = cat === 'professional' || cat === 'leadership'
+              const hasDates = cat === 'professional' || cat === 'leadership' || cat === 'project'
+              return (
+                <div key={i} style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 12, padding: 16, marginBottom: 12,
+                }}>
+                  {/* Category selector + remove button */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <select className="select" value={cat} onChange={e => updateExp({ category: e.target.value as SectionCategory })}
+                      style={{ width: 'auto', fontSize: 13, padding: '4px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }}>
+                      {(Object.keys(SECTION_LABELS) as SectionCategory[]).map(k => (
+                        <option key={k} value={k}>{SECTION_LABELS[k]}</option>
+                      ))}
+                    </select>
+                    <button onClick={removeExp} style={{ fontSize: 12, color: '#e55', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      Remove
+                    </button>
                   </div>
-                  <div className="form-group">
-                    <label className="label" style={{ fontSize: 12 }}>Company</label>
-                    <input className="input" value={exp.company} onChange={e => {
-                      const updated = [...profile.experience]
-                      updated[i] = { ...updated[i], company: e.target.value }
-                      setProfile(p => ({ ...p, experience: updated }))
-                    }} />
-                  </div>
-                  <div className="form-group">
-                    <label className="label" style={{ fontSize: 12 }}>Start Date</label>
-                    <input className="input" value={exp.startDate} onChange={e => {
-                      const updated = [...profile.experience]
-                      updated[i] = { ...updated[i], startDate: e.target.value }
-                      setProfile(p => ({ ...p, experience: updated }))
-                    }} />
-                  </div>
-                  <div className="form-group">
-                    <label className="label" style={{ fontSize: 12 }}>End Date</label>
-                    <input className="input" placeholder="Present" value={exp.endDate} onChange={e => {
-                      const updated = [...profile.experience]
-                      updated[i] = { ...updated[i], endDate: e.target.value }
-                      setProfile(p => ({ ...p, experience: updated }))
-                    }} />
-                  </div>
+
+                  {/* ---- Professional Experience / Leadership ---- */}
+                  {(cat === 'professional' || cat === 'leadership') && (
+                    <>
+                      <div className="form-grid">
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>{cat === 'leadership' ? 'Role / Title' : 'Job Title'}</label>
+                          <input className="input" value={exp.title} onChange={e => updateExp({ title: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>{cat === 'leadership' ? 'Organization' : 'Company'}</label>
+                          <input className="input" value={exp.company} onChange={e => updateExp({ company: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>Start Date</label>
+                          <input className="input" type="month" value={exp.startDate} onChange={e => updateExp({ startDate: e.target.value })} style={{ colorScheme: 'dark' }} />
+                        </div>
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>End Date</label>
+                          <input className="input" type="month" placeholder="Present" value={exp.endDate === 'Present' ? '' : exp.endDate} onChange={e => updateExp({ endDate: e.target.value })} style={{ colorScheme: 'dark' }} disabled={exp.endDate === 'Present'} />
+                          <label style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={exp.endDate === 'Present'} onChange={e => updateExp({ endDate: e.target.checked ? 'Present' : '' })} style={{ accentColor: 'var(--accent)' }} />
+                            Current role
+                          </label>
+                        </div>
+                      </div>
+                      {/* Key Achievements — 3 separate lines with AI enhance */}
+                      <div className="form-group" style={{ marginTop: 8 }}>
+                        <label className="label" style={{ fontSize: 12 }}>Key Achievements</label>
+                        {[0, 1, 2].map(bulletIdx => {
+                          const bulletKey = `${i}-${bulletIdx}`
+                          const isEnhancing = enhancingBullet === bulletKey
+                          const bulletVal = (exp.bullets && exp.bullets[bulletIdx]) || ''
+                          return (
+                            <div key={bulletIdx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 13, minWidth: 16 }}>{bulletIdx + 1}.</span>
+                              <input className="input" style={{ flex: 1 }}
+                                placeholder={bulletIdx === 0 ? 'e.g. Increased revenue by 20% through...' : 'Another key achievement...'}
+                                value={bulletVal}
+                                onChange={e => {
+                                  const newBullets = [...(exp.bullets || ['', '', ''])]
+                                  while (newBullets.length < 3) newBullets.push('')
+                                  newBullets[bulletIdx] = e.target.value
+                                  updateExp({ bullets: newBullets })
+                                }}
+                              />
+                              <button
+                                disabled={isEnhancing || !bulletVal.trim()}
+                                onClick={() => enhanceBullet(i, bulletIdx)}
+                                style={{
+                                  background: isEnhancing ? 'var(--surface)' : 'linear-gradient(135deg, var(--accent), #b8944f)',
+                                  color: isEnhancing ? 'var(--text-muted)' : '#fff',
+                                  border: 'none', borderRadius: 8, padding: '6px 12px',
+                                  fontSize: 11, fontWeight: 600, cursor: isEnhancing ? 'wait' : 'pointer',
+                                  whiteSpace: 'nowrap', opacity: !bulletVal.trim() ? 0.4 : 1,
+                                  transition: 'all 0.2s',
+                                }}
+                                title="Use AI to improve this bullet point"
+                              >
+                                {isEnhancing ? 'Enhancing...' : 'Infuse with AI'}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {/* ---- Publication ---- */}
+                  {cat === 'publication' && (
+                    <div className="form-grid">
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="label" style={{ fontSize: 12 }}>Publication Title</label>
+                        <input className="input" placeholder="Title of your publication" value={exp.title} onChange={e => updateExp({ title: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Authors</label>
+                        <input className="input" placeholder="e.g. Smith, J., Doe, A." value={exp.authors || ''} onChange={e => updateExp({ authors: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Journal / Publication</label>
+                        <input className="input" placeholder="e.g. Nature, IEEE..." value={exp.journal || ''} onChange={e => updateExp({ journal: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Year</label>
+                        <input className="input" placeholder="2025" value={exp.startDate} onChange={e => updateExp({ startDate: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>DOI / URL</label>
+                        <input className="input" placeholder="https://doi.org/..." value={exp.doi || ''} onChange={e => updateExp({ doi: e.target.value })} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ---- Project ---- */}
+                  {cat === 'project' && (
+                    <>
+                      <div className="form-grid">
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>Project Name</label>
+                          <input className="input" value={exp.title} onChange={e => updateExp({ title: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>Technologies Used</label>
+                          <input className="input" placeholder="e.g. React, Python, AWS" value={exp.technologies || ''} onChange={e => updateExp({ technologies: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>Start Date</label>
+                          <input className="input" type="month" value={exp.startDate} onChange={e => updateExp({ startDate: e.target.value })} style={{ colorScheme: 'dark' }} />
+                        </div>
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>URL (optional)</label>
+                          <input className="input" placeholder="https://..." value={exp.url || ''} onChange={e => updateExp({ url: e.target.value })} />
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ marginTop: 8 }}>
+                        <label className="label" style={{ fontSize: 12 }}>Description</label>
+                        <textarea className="textarea" rows={2} placeholder="Brief description of the project and your role..."
+                          value={exp.description || ''} onChange={e => updateExp({ description: e.target.value })} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* ---- Honor / Award ---- */}
+                  {cat === 'honor' && (
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Award Name</label>
+                        <input className="input" placeholder="e.g. Dean's List, Employee of the Year" value={exp.title} onChange={e => updateExp({ title: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Issuer / Organization</label>
+                        <input className="input" placeholder="e.g. University of Texas" value={exp.issuer || ''} onChange={e => updateExp({ issuer: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Date Received</label>
+                        <input className="input" type="month" value={exp.dateReceived || ''} onChange={e => updateExp({ dateReceived: e.target.value })} style={{ colorScheme: 'dark' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ---- Certification ---- */}
+                  {cat === 'certification' && (
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Certification Name</label>
+                        <input className="input" placeholder="e.g. AWS Solutions Architect" value={exp.title} onChange={e => updateExp({ title: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Issuing Organization</label>
+                        <input className="input" placeholder="e.g. Amazon Web Services" value={exp.certOrg || ''} onChange={e => updateExp({ certOrg: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label" style={{ fontSize: 12 }}>Date Obtained</label>
+                        <input className="input" type="month" value={exp.certDate || ''} onChange={e => updateExp({ certDate: e.target.value })} style={{ colorScheme: 'dark' }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="form-group">
-                  <label className="label" style={{ fontSize: 12 }}>Key Achievements (one per line)</label>
-                  <textarea className="textarea" rows={3}
-                    value={exp.bullets.join('\n')}
-                    onChange={e => {
-                      const updated = [...profile.experience]
-                      updated[i] = { ...updated[i], bullets: e.target.value.split('\n') }
-                      setProfile(p => ({ ...p, experience: updated }))
-                    }} />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Skills */}
