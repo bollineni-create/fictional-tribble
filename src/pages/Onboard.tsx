@@ -77,7 +77,7 @@ const STEPS: { key: Step; label: string }[] = [
 const DAILY_LIMIT = 3
 
 export default function Onboard() {
-  const { user, session, isPro } = useAuth()
+  const { user, session, isPro, refreshProfile: refreshAuthProfile } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
 
@@ -298,9 +298,9 @@ export default function Onboard() {
 
       // Also update the profiles table with the user's full name
       if (data.profile.fullName) {
-        try {
-          await supabase.from('profiles').update({ full_name: data.profile.fullName }).eq('id', user.id)
-        } catch {}
+        const { error: nameErr } = await supabase.from('profiles').update({ full_name: data.profile.fullName }).eq('id', user.id)
+        if (nameErr) console.error('[Onboard] profiles full_name update error:', nameErr)
+        else await refreshAuthProfile() // Refresh AuthContext so Dashboard sees the name
       }
 
       setStep('review')
@@ -417,50 +417,48 @@ export default function Onboard() {
     // 1. Save resume
     setAutoFlowStatus('Saving your resume...')
     try {
-      const { data: saveData } = await supabase.from('saved_resumes').insert({
+      const { data: saveData, error: saveErr } = await supabase.from('saved_resumes').insert({
         user_id: user.id, title, type: 'resume',
         content: generatedContent, job_title: jobTitle.trim(), company: company.trim(),
       }).select('id').single()
+      if (saveErr) console.error('[AutoFlow] save resume error:', saveErr)
       if (saveData?.id) setSavedResumeId(saveData.id)
-    } catch {}
+    } catch (e) { console.error('[AutoFlow] save resume exception:', e) }
 
     // 1b. Ensure full_name is saved to profiles table
     if (profile.fullName) {
-      try {
-        await supabase.from('profiles').update({ full_name: profile.fullName }).eq('id', user.id)
-      } catch {}
+      const { error: nameErr } = await supabase.from('profiles').update({ full_name: profile.fullName }).eq('id', user.id)
+      if (nameErr) console.error('[AutoFlow] profiles full_name update error:', nameErr)
     }
 
     // 2. Update full profile + skills in extended profile
     setAutoFlowStatus('Updating your skills profile...')
-    try {
-      await supabase.from('user_profiles_extended').upsert({
-        user_id: user.id,
-        full_name: profile.fullName || null,
-        email: profile.email || null,
-        phone: profile.phone || null,
-        location: profile.location || null,
-        linkedin: profile.linkedin || null,
-        summary: profile.summary || null,
-        experience: profile.experience || [],
-        education: profile.education || [],
-        skills: selectedSkills,
-        certifications: profile.certifications || [],
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' })
-    } catch {}
+    const { error: extErr } = await supabase.from('user_profiles_extended').upsert({
+      user_id: user.id,
+      full_name: profile.fullName || null,
+      email: profile.email || null,
+      phone: profile.phone || null,
+      location: profile.location || null,
+      linkedin: profile.linkedin || null,
+      summary: profile.summary || null,
+      experience: profile.experience || [],
+      education: profile.education || [],
+      skills: selectedSkills,
+      certifications: profile.certifications || [],
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    if (extErr) console.error('[AutoFlow] user_profiles_extended upsert error:', extErr)
 
     // 3. Set job preferences
     setAutoFlowStatus('Setting job preferences...')
-    try {
-      await supabase.from('job_preferences').upsert({
-        user_id: user.id,
-        desired_titles: [jobTitle.trim()].filter(Boolean),
-        industries: [industry].filter(Boolean),
-        remote_ok: true,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' })
-    } catch {}
+    const { error: prefsErr } = await supabase.from('job_preferences').upsert({
+      user_id: user.id,
+      desired_titles: [jobTitle.trim()].filter(Boolean),
+      industries: [industry].filter(Boolean),
+      remote_ok: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    if (prefsErr) console.error('[AutoFlow] job_preferences upsert error:', prefsErr)
 
     // 4. Export PDF (for Pro users)
     if (isPro) {
@@ -476,8 +474,11 @@ export default function Onboard() {
           const w = window.open('', '_blank')
           if (w) { w.document.write(data.html); w.document.close() }
         }
-      } catch {}
+      } catch (e) { console.error('[AutoFlow] PDF export error:', e) }
     }
+
+    // 5. Refresh AuthContext profile so Dashboard picks up full_name etc.
+    try { await refreshAuthProfile() } catch {}
 
     setAutoFlowStatus(null)
     setAutoFlowDone(true)

@@ -32,17 +32,17 @@ interface SavedJob {
   saved_at: string
 }
 
-// Profile completion checks
+// Profile completion checks — ext = user_profiles_extended row, prefs = hasPreferences boolean
 const PROFILE_STEPS = [
-  { key: 'name', label: 'Full name', check: (p: any) => !!p?.full_name },
+  { key: 'name', label: 'Full name', check: (p: any, _s: AppStats, ext: any) => !!p?.full_name || !!ext?.full_name },
   { key: 'resume', label: 'Generate a resume', check: (_p: any, s: AppStats) => s.resumeCount > 0 },
-  { key: 'skills', label: 'Add skills', check: (_p: any, _s: AppStats, ext: any) => ext?.skills?.length > 0 },
+  { key: 'skills', label: 'Add skills', check: (_p: any, _s: AppStats, ext: any) => Array.isArray(ext?.skills) && ext.skills.length > 0 },
   { key: 'preferences', label: 'Set job preferences', check: (_p: any, _s: AppStats, _ext: any, prefs: any) => !!prefs },
   { key: 'search', label: 'Run a job search', check: (_p: any, s: AppStats) => s.totalApps > 0 || s.savedJobs > 0 || !!localStorage.getItem('resumeai_job_searched') },
 ]
 
 export default function Dashboard() {
-  const { user, profile, isPro, isMax, tier } = useAuth()
+  const { user, profile, isPro, isMax, tier, refreshProfile } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<AppStats>({
@@ -57,6 +57,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) { navigate('/'); return }
+    // Refresh the AuthContext profile to pick up any recent DB changes (e.g. full_name)
+    refreshProfile()
     loadDashboard()
     // Set greeting time
     const h = new Date().getHours()
@@ -69,16 +71,20 @@ export default function Dashboard() {
 
     try {
       const [appsRes, savedRes, messagesRes, resumesRes, extRes, prefsRes] = await Promise.all([
-        withTimeout(Promise.resolve(supabase.from('applications').select('id,job_title,company,status,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)), 8000),
-        withTimeout(Promise.resolve(supabase.from('saved_jobs').select('job_id,title,company,company_logo,status,saved_at').eq('user_id', user.id).order('saved_at', { ascending: false }).limit(10)), 8000),
-        isPro ? withTimeout(Promise.resolve(supabase.from('messages').select('id', { count: 'exact' }).eq('user_id', user.id).eq('is_read', false)), 8000) : Promise.resolve({ count: 0 }),
-        withTimeout(Promise.resolve(supabase.from('saved_resumes').select('id', { count: 'exact' }).eq('user_id', user.id)), 8000),
-        withTimeout(Promise.resolve(supabase.from('user_profiles_extended').select('skills,preferences,location').eq('user_id', user.id).single()), 8000).catch(() => ({ data: null })),
-        withTimeout(Promise.resolve(supabase.from('job_preferences').select('user_id').eq('user_id', user.id).single()), 8000).catch(() => ({ data: null })),
+        withTimeout(Promise.resolve(supabase.from('applications').select('id,job_title,company,status,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)), 8000).catch(() => ({ data: [] })),
+        withTimeout(Promise.resolve(supabase.from('saved_jobs').select('job_id,title,company,company_logo,status,saved_at').eq('user_id', user.id).order('saved_at', { ascending: false }).limit(10)), 8000).catch(() => ({ data: [] })),
+        isPro ? withTimeout(Promise.resolve(supabase.from('inbox_messages').select('id', { count: 'exact' }).eq('user_id', user.id).eq('is_read', false)), 8000).catch(() => ({ count: 0 })) : Promise.resolve({ count: 0 }),
+        withTimeout(Promise.resolve(supabase.from('saved_resumes').select('id', { count: 'exact' }).eq('user_id', user.id)), 8000).catch(() => ({ count: 0 })),
+        withTimeout(Promise.resolve(supabase.from('user_profiles_extended').select('full_name,skills,preferences,location').eq('user_id', user.id).maybeSingle()), 8000).catch(() => ({ data: null })),
+        withTimeout(Promise.resolve(supabase.from('job_preferences').select('user_id').eq('user_id', user.id).maybeSingle()), 8000).catch(() => ({ data: null })),
       ])
 
       const apps = (appsRes as any).data || []
       const saved = (savedRes as any).data || []
+
+      // Log any Supabase-level errors (returned in response, not thrown)
+      if ((extRes as any).error) console.warn('[Dashboard] user_profiles_extended query error:', (extRes as any).error)
+      if ((prefsRes as any).error) console.warn('[Dashboard] job_preferences query error:', (prefsRes as any).error)
 
       setStats({
         totalApps: apps.length,
@@ -93,7 +99,9 @@ export default function Dashboard() {
 
       setRecentApps(apps.slice(0, 5))
       setRecentSaved(saved.slice(0, 5))
-      setExtProfile((extRes as any).data || null)
+
+      const extData = (extRes as any).data || null
+      setExtProfile(extData)
       setHasPreferences(!!(prefsRes as any).data)
     } catch (err) {
       console.error('Dashboard load error', err)
