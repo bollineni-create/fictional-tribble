@@ -136,11 +136,24 @@ export default function Onboard() {
     setParsing(true)
     try {
       const headers = await getAuthHeaders()
-      const res = await fetch('/api/parse-resume', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ resumeText: text }),
-      })
+      // 45s client-side timeout (server has 30s, plus network overhead)
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 45000)
+      let res: Response
+      try {
+        res = await fetch('/api/parse-resume', {
+          method: 'POST',
+          headers,
+          signal: controller.signal,
+          body: JSON.stringify({ resumeText: text }),
+        })
+      } catch (fetchErr: any) {
+        clearTimeout(timeout)
+        if (fetchErr.name === 'AbortError') throw new Error('Resume parsing timed out. Please try again.')
+        throw fetchErr
+      } finally {
+        clearTimeout(timeout)
+      }
 
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Parsing failed')
