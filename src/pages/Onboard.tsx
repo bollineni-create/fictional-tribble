@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
@@ -42,6 +42,8 @@ interface Experience {
   // Certification fields
   certOrg?: string
   certDate?: string
+  certFileName?: string
+  certFileUrl?: string
 }
 
 interface Education {
@@ -182,6 +184,7 @@ export default function Onboard() {
           jobTitle: exp.title,
           company: exp.company,
           targetRole: jobTitle.trim() || undefined,
+          allBullets: (exp.bullets || []).filter(Boolean),
         }),
       })
       if (!res.ok) {
@@ -595,7 +598,7 @@ export default function Onboard() {
                           </label>
                         </div>
                       </div>
-                      {/* Key Achievements — 3 separate lines with AI enhance */}
+                      {/* Key Achievements — 3 separate lines with inline AI enhance + clear */}
                       <div className="form-group" style={{ marginTop: 8 }}>
                         <label className="label" style={{ fontSize: 12 }}>Key Achievements</label>
                         {[0, 1, 2].map(bulletIdx => {
@@ -603,33 +606,59 @@ export default function Onboard() {
                           const isEnhancing = enhancingBullet === bulletKey
                           const bulletVal = (exp.bullets && exp.bullets[bulletIdx]) || ''
                           return (
-                            <div key={bulletIdx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                            <div key={bulletIdx} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
                               <span style={{ color: 'var(--text-muted)', fontSize: 13, minWidth: 16 }}>{bulletIdx + 1}.</span>
-                              <input className="input" style={{ flex: 1 }}
-                                placeholder={bulletIdx === 0 ? 'e.g. Increased revenue by 20% through...' : 'Another key achievement...'}
-                                value={bulletVal}
-                                onChange={e => {
-                                  const newBullets = [...(exp.bullets || ['', '', ''])]
-                                  while (newBullets.length < 3) newBullets.push('')
-                                  newBullets[bulletIdx] = e.target.value
-                                  updateExp({ bullets: newBullets })
-                                }}
-                              />
-                              <button
-                                disabled={isEnhancing || !bulletVal.trim()}
-                                onClick={() => enhanceBullet(i, bulletIdx)}
-                                style={{
-                                  background: isEnhancing ? 'var(--surface)' : 'linear-gradient(135deg, var(--accent), #b8944f)',
-                                  color: isEnhancing ? 'var(--text-muted)' : '#fff',
-                                  border: 'none', borderRadius: 8, padding: '6px 12px',
-                                  fontSize: 11, fontWeight: 600, cursor: isEnhancing ? 'wait' : 'pointer',
-                                  whiteSpace: 'nowrap', opacity: !bulletVal.trim() ? 0.4 : 1,
-                                  transition: 'all 0.2s',
-                                }}
-                                title="Use AI to improve this bullet point"
-                              >
-                                {isEnhancing ? 'Enhancing...' : 'Infuse with AI'}
-                              </button>
+                              <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <input className="input" style={{ flex: 1, paddingRight: bulletVal.trim() ? 130 : 8 }}
+                                  placeholder={bulletIdx === 0 ? 'e.g. Increased revenue by 20% through...' : 'Another key achievement...'}
+                                  value={bulletVal}
+                                  onChange={e => {
+                                    const newBullets = [...(exp.bullets || ['', '', ''])]
+                                    while (newBullets.length < 3) newBullets.push('')
+                                    newBullets[bulletIdx] = e.target.value
+                                    updateExp({ bullets: newBullets })
+                                  }}
+                                />
+                                {/* Inline buttons — inside the input visually */}
+                                {bulletVal.trim() && (
+                                  <div style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                                    <button
+                                      disabled={isEnhancing}
+                                      onClick={() => enhanceBullet(i, bulletIdx)}
+                                      style={{
+                                        background: isEnhancing ? 'transparent' : 'linear-gradient(135deg, var(--accent), #b8944f)',
+                                        color: isEnhancing ? 'var(--accent)' : '#fff',
+                                        border: isEnhancing ? '1px solid var(--accent)' : 'none',
+                                        borderRadius: 6, padding: '3px 10px',
+                                        fontSize: 10, fontWeight: 600, cursor: isEnhancing ? 'wait' : 'pointer',
+                                        whiteSpace: 'nowrap', transition: 'all 0.2s', lineHeight: '18px',
+                                      }}
+                                      title="Use AI to improve this bullet point"
+                                    >
+                                      {isEnhancing ? '...' : '✦ AI'}
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const newBullets = [...(exp.bullets || ['', '', ''])]
+                                        while (newBullets.length < 3) newBullets.push('')
+                                        newBullets[bulletIdx] = ''
+                                        updateExp({ bullets: newBullets })
+                                      }}
+                                      style={{
+                                        background: 'transparent', color: 'var(--text-muted)',
+                                        border: 'none', borderRadius: 6, padding: '3px 6px',
+                                        fontSize: 14, cursor: 'pointer', lineHeight: '18px',
+                                        transition: 'color 0.15s',
+                                      }}
+                                      title="Clear this bullet"
+                                      onMouseEnter={e => (e.currentTarget.style.color = '#e55')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )
                         })}
@@ -712,20 +741,77 @@ export default function Onboard() {
 
                   {/* ---- Certification ---- */}
                   {cat === 'certification' && (
-                    <div className="form-grid">
-                      <div className="form-group">
-                        <label className="label" style={{ fontSize: 12 }}>Certification Name</label>
-                        <input className="input" placeholder="e.g. AWS Solutions Architect" value={exp.title} onChange={e => updateExp({ title: e.target.value })} />
+                    <>
+                      <div className="form-grid">
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>Certification Name</label>
+                          <input className="input" placeholder="e.g. AWS Solutions Architect" value={exp.title} onChange={e => updateExp({ title: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>Issuing Organization</label>
+                          <input className="input" placeholder="e.g. Amazon Web Services" value={exp.certOrg || ''} onChange={e => updateExp({ certOrg: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                          <label className="label" style={{ fontSize: 12 }}>Date Obtained</label>
+                          <input className="input" type="month" value={exp.certDate || ''} onChange={e => updateExp({ certDate: e.target.value })} style={{ colorScheme: 'dark' }} />
+                        </div>
                       </div>
-                      <div className="form-group">
-                        <label className="label" style={{ fontSize: 12 }}>Issuing Organization</label>
-                        <input className="input" placeholder="e.g. Amazon Web Services" value={exp.certOrg || ''} onChange={e => updateExp({ certOrg: e.target.value })} />
+                      {/* Certificate file upload */}
+                      <div className="form-group" style={{ marginTop: 8 }}>
+                        <label className="label" style={{ fontSize: 12 }}>Upload Certificate (optional)</label>
+                        {exp.certFileName ? (
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            background: 'var(--bg)', border: '1px solid var(--border)',
+                            borderRadius: 8, padding: '8px 12px',
+                          }}>
+                            <span style={{ fontSize: 16 }}>📄</span>
+                            <span style={{ flex: 1, fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {exp.certFileName}
+                            </span>
+                            {exp.certFileUrl && (
+                              <a href={exp.certFileUrl} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                View
+                              </a>
+                            )}
+                            <button onClick={() => updateExp({ certFileName: undefined, certFileUrl: undefined })}
+                              style={{ background: 'none', border: 'none', color: '#e55', cursor: 'pointer', fontSize: 14, padding: '0 4px' }}>
+                              ×
+                            </button>
+                          </div>
+                        ) : (
+                          <label style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            background: 'var(--bg)', border: '1px dashed var(--border)',
+                            borderRadius: 8, padding: '10px 16px', cursor: 'pointer',
+                            fontSize: 13, color: 'var(--text-muted)', transition: 'border-color 0.2s',
+                          }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                          >
+                            <span>📎 Upload PDF, PNG, or JPG</span>
+                            <input type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                if (file.size > 5 * 1024 * 1024) {
+                                  showToast('File must be under 5MB')
+                                  return
+                                }
+                                // Store as data URL for now (persists in profile state)
+                                const reader = new FileReader()
+                                reader.onload = () => {
+                                  updateExp({ certFileName: file.name, certFileUrl: reader.result as string })
+                                  showToast('Certificate uploaded!')
+                                }
+                                reader.readAsDataURL(file)
+                              }}
+                            />
+                          </label>
+                        )}
                       </div>
-                      <div className="form-group">
-                        <label className="label" style={{ fontSize: 12 }}>Date Obtained</label>
-                        <input className="input" type="month" value={exp.certDate || ''} onChange={e => updateExp({ certDate: e.target.value })} style={{ colorScheme: 'dark' }} />
-                      </div>
-                    </div>
+                    </>
                   )}
                 </div>
               )
