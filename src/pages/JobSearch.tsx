@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, withTimeout } from '../lib/supabase'
 import { useToast } from '../components/Toast'
@@ -50,8 +50,9 @@ export default function JobSearch() {
   const { user, isPro, tier } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(searchParams.get('q') || '')
   const [location, setLocation] = useState('')
   const [remoteOnly, setRemoteOnly] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -92,6 +93,19 @@ export default function JobSearch() {
     loadUserProfile()
     loadSavedJobs()
   }, [user])
+
+  // Auto-search when arriving with ?q= param from onboarding
+  const autoSearched = useRef(false)
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q && !autoSearched.current && user && !loading) {
+      autoSearched.current = true
+      setQuery(q)
+      // Delay slightly so profile loads first for match scoring
+      const timer = setTimeout(() => searchJobs(1), 400)
+      return () => clearTimeout(timer)
+    }
+  }, [user, searchParams])
 
   // Close location dropdown on outside click
   useEffect(() => {

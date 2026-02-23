@@ -167,8 +167,28 @@ export default function Onboard() {
 
       setProfile(data.profile)
       setSelectedSkills(data.profile.skills || [])
+
+      // Auto-save the parsed resume to saved_resumes
+      try {
+        await supabase.from('saved_resumes').insert({
+          user_id: user.id,
+          title: data.profile.fullName ? `${data.profile.fullName}'s Resume` : 'Uploaded Resume',
+          type: 'resume',
+          content: text,
+          job_title: 'General',
+          company: '',
+        })
+      } catch {}
+
+      // Also update the profiles table with the user's full name
+      if (data.profile.fullName) {
+        try {
+          await supabase.from('profiles').update({ full_name: data.profile.fullName }).eq('id', user.id)
+        } catch {}
+      }
+
       setStep('review')
-      showToast('Resume parsed successfully!')
+      showToast('Resume parsed and saved!')
     } catch (err: any) {
       showToast(err.message || 'Failed to parse resume')
     } finally {
@@ -710,7 +730,19 @@ export default function Onboard() {
             <button className="generate-btn" onClick={() => setStep('customize')} style={{ flex: 1 }}>
               &#128260; Tweak &amp; Regenerate
             </button>
-            <button className="generate-btn" onClick={() => navigate('/jobs')}
+            <button className="generate-btn" onClick={() => {
+              // Also save the generated result automatically
+              if (user && resultContent) {
+                const title = company.trim() ? `${jobTitle.trim()} — ${company.trim()}` : jobTitle.trim()
+                supabase.from('saved_resumes').insert({
+                  user_id: user.id, title: title || 'Resume', type: 'resume',
+                  content: resultContent, job_title: jobTitle.trim(), company: company.trim(),
+                }).then(() => {})
+              }
+              // Navigate to jobs with pre-filled search query
+              const searchQuery = jobTitle.trim()
+              navigate(searchQuery ? `/jobs?q=${encodeURIComponent(searchQuery)}` : '/jobs')
+            }}
               style={{ flex: 1, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
               &#128269; Find Matching Jobs &rarr;
             </button>
