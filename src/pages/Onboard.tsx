@@ -120,8 +120,15 @@ export default function Onboard() {
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     try {
-      const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
-      if (s) headers['Authorization'] = 'Bearer ' + s.access_token
+      // Try refreshing the session first to avoid expired token errors
+      const { data: { session: s } } = await withTimeout(supabase.auth.refreshSession(), 5000)
+      if (s) {
+        headers['Authorization'] = 'Bearer ' + s.access_token
+      } else {
+        // Fall back to existing session if refresh fails
+        const { data: { session: existing } } = await supabase.auth.getSession()
+        if (existing) headers['Authorization'] = 'Bearer ' + existing.access_token
+      }
     } catch {}
     return headers
   }
