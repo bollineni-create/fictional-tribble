@@ -16,33 +16,26 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  // ---- AUTH REQUIRED ----
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader) {
-    return new Response(
-      JSON.stringify({ error: "Authentication required" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
-    );
-  }
-
+  // ---- AUTH (optional — parse still works, but profile save requires it) ----
   let userId: string | null = null;
-  try {
-    const token = authHeader.replace("Bearer ", "");
-    const supabaseUrl = Netlify.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey) throw new Error("Missing config");
-
-    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: { Authorization: `Bearer ${token}`, apikey: supabaseServiceKey },
-    });
-    if (!userRes.ok) throw new Error("Invalid token");
-    const user = await userRes.json();
-    userId = user.id;
-  } catch {
-    return new Response(
-      JSON.stringify({ error: "Invalid authentication" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
-    );
+  const authHeader = req.headers.get("authorization");
+  if (authHeader) {
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const supabaseUrl = Netlify.env.get("SUPABASE_URL");
+      const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseUrl && supabaseServiceKey) {
+        const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+          headers: { Authorization: `Bearer ${token}`, apikey: supabaseServiceKey },
+        });
+        if (userRes.ok) {
+          const user = await userRes.json();
+          userId = user.id;
+        }
+      }
+    } catch {
+      // Auth failed — continue without userId, skip profile save later
+    }
   }
 
   // ---- PARSE BODY ----
@@ -171,45 +164,47 @@ Rules:
       }
     }
 
-    // ---- SAVE TO SUPABASE ----
-    const supabaseUrl = Netlify.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    // Upsert the extended profile
-    const upsertRes = await fetch(
-      `${supabaseUrl}/rest/v1/user_profiles_extended`,
-      {
-        method: "POST",
-        headers: {
-          apikey: supabaseServiceKey,
-          Authorization: `Bearer ${supabaseServiceKey}`,
-          "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates",
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          full_name: parsed.fullName || null,
-          email: parsed.email || null,
-          phone: parsed.phone || null,
-          location: parsed.location || null,
-          summary: parsed.summary || null,
-          experience: parsed.experience || [],
-          education: parsed.education || [],
-          skills: parsed.skills || [],
-          certifications: parsed.certifications || [],
-          raw_resume_text: resumeText.substring(0, 10000),
-          updated_at: new Date().toISOString(),
-        }),
+    // ---- SAVE TO SUPABASE (only if authenticated) ----
+    let saved = false;
+    if (userId) {
+      const supabaseUrl = Netlify.env.get("SUPABASE_URL");
+      const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseUrl && supabaseServiceKey) {
+        const upsertRes = await fetch(
+          `${supabaseUrl}/rest/v1/user_profiles_extended`,
+          {
+            method: "POST",
+            headers: {
+              apikey: supabaseServiceKey,
+              Authorization: `Bearer ${supabaseServiceKey}`,
+              "Content-Type": "application/json",
+              Prefer: "resolution=merge-duplicates",
+            },
+            body: JSON.stringify({
+              user_id: userId,
+              full_name: parsed.fullName || null,
+              email: parsed.email || null,
+              phone: parsed.phone || null,
+              location: parsed.location || null,
+              summary: parsed.summary || null,
+              experience: parsed.experience || [],
+              education: parsed.education || [],
+              skills: parsed.skills || [],
+              certifications: parsed.certifications || [],
+              raw_resume_text: resumeText.substring(0, 10000),
+              updated_at: new Date().toISOString(),
+            }),
+          }
+        );
+        if (!upsertRes.ok) {
+          console.error("Supabase upsert error:", await upsertRes.text());
+        }
+        saved = upsertRes.ok;
       }
-    );
-
-    if (!upsertRes.ok) {
-      console.error("Supabase upsert error:", await upsertRes.text());
-      // Still return the parsed data even if save fails
     }
 
     return new Response(
-      JSON.stringify({ profile: parsed, saved: upsertRes.ok }),
+      JSON.stringify({ profile: parsed, saved }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (err) {
