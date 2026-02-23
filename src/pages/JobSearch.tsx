@@ -246,6 +246,7 @@ export default function JobSearch() {
     if (!query.trim()) return
     setLoading(true)
     setSelectedJob(null)
+    localStorage.setItem('resumeai_job_searched', '1')
 
     try {
       const headers = await getAuthHeaders()

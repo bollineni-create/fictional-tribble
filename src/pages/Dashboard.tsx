@@ -35,10 +35,10 @@ interface SavedJob {
 // Profile completion checks
 const PROFILE_STEPS = [
   { key: 'name', label: 'Full name', check: (p: any) => !!p?.full_name },
-  { key: 'resume', label: 'Upload a resume', check: (_p: any, s: AppStats) => s.resumeCount > 0 },
+  { key: 'resume', label: 'Generate a resume', check: (_p: any, s: AppStats) => s.resumeCount > 0 },
   { key: 'skills', label: 'Add skills', check: (_p: any, _s: AppStats, ext: any) => ext?.skills?.length > 0 },
   { key: 'preferences', label: 'Set job preferences', check: (_p: any, _s: AppStats, _ext: any, prefs: any) => !!prefs },
-  { key: 'search', label: 'Run a job search', check: (_p: any, s: AppStats) => s.totalApps > 0 || s.savedJobs > 0 },
+  { key: 'search', label: 'Run a job search', check: (_p: any, s: AppStats) => s.totalApps > 0 || s.savedJobs > 0 || !!localStorage.getItem('resumeai_job_searched') },
 ]
 
 export default function Dashboard() {

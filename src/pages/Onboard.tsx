@@ -424,12 +424,28 @@ export default function Onboard() {
       if (saveData?.id) setSavedResumeId(saveData.id)
     } catch {}
 
-    // 2. Update skills in extended profile
+    // 1b. Ensure full_name is saved to profiles table
+    if (profile.fullName) {
+      try {
+        await supabase.from('profiles').update({ full_name: profile.fullName }).eq('id', user.id)
+      } catch {}
+    }
+
+    // 2. Update full profile + skills in extended profile
     setAutoFlowStatus('Updating your skills profile...')
     try {
       await supabase.from('user_profiles_extended').upsert({
         user_id: user.id,
+        full_name: profile.fullName || null,
+        email: profile.email || null,
+        phone: profile.phone || null,
+        location: profile.location || null,
+        linkedin: profile.linkedin || null,
+        summary: profile.summary || null,
+        experience: profile.experience || [],
+        education: profile.education || [],
         skills: selectedSkills,
+        certifications: profile.certifications || [],
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
     } catch {}
@@ -1258,6 +1274,7 @@ export default function Onboard() {
               &#128260; Tweak &amp; Regenerate
             </button>
             <button className="generate-btn" onClick={() => {
+              localStorage.setItem('resumeai_job_searched', '1')
               const searchQuery = jobTitle.trim()
               navigate(searchQuery ? `/jobs?q=${encodeURIComponent(searchQuery)}&auto=1` : '/jobs')
             }}
