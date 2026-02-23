@@ -98,7 +98,7 @@ export default function Onboard() {
   const [company, setCompany] = useState('')
   const [industry, setIndustry] = useState('Technology')
   const [hasListing, setHasListing] = useState(false)
-  const [jobListings, setJobListings] = useState<{ title: string; description: string }[]>([{ title: '', description: '' }])
+  const [jobListings, setJobListings] = useState<{ title: string; description: string; url: string }[]>([{ title: '', description: '', url: '' }])
 
   // Customize fields
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
@@ -113,6 +113,9 @@ export default function Onboard() {
 
   // AI bullet enhancement tracking: "expIdx-bulletIdx"
   const [enhancingBullet, setEnhancingBullet] = useState<string | null>(null)
+
+  // Fetch listing from URL tracking
+  const [fetchingListing, setFetchingListing] = useState<number | null>(null)
 
   // Check for existing profile on mount
   useEffect(() => {
@@ -164,6 +167,36 @@ export default function Onboard() {
       }
     } catch {}
     return headers
+  }
+
+  // ---- FETCH JOB LISTING FROM URL ----
+  const fetchListingFromUrl = async (idx: number, url: string) => {
+    if (!url.trim()) { showToast('Please enter a URL'); return }
+    setFetchingListing(idx)
+    try {
+      const res = await fetch('/api/fetch-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        showToast(data.error || 'Failed to fetch listing')
+        return
+      }
+      const updated = [...jobListings]
+      updated[idx] = {
+        ...updated[idx],
+        description: data.description || '',
+        title: updated[idx].title || data.title || '',
+      }
+      setJobListings(updated)
+      showToast('Job listing imported!')
+    } catch (err) {
+      showToast('Failed to fetch listing. Try pasting manually.')
+    } finally {
+      setFetchingListing(null)
+    }
   }
 
   // ---- AI BULLET ENHANCEMENT ----
@@ -957,6 +990,42 @@ export default function Onboard() {
                           setJobListings(updated)
                         }} />
                     </div>
+                    <div className="form-group" style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <span style={{ position: 'absolute', left: 10, color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' }}>🔗</span>
+                          <input className="input" style={{ flex: 1, paddingLeft: 30 }}
+                            placeholder="Paste job listing URL to auto-import..."
+                            value={listing.url}
+                            onChange={e => {
+                              const updated = [...jobListings]
+                              updated[idx] = { ...updated[idx], url: e.target.value }
+                              setJobListings(updated)
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { e.preventDefault(); fetchListingFromUrl(idx, listing.url) }
+                            }}
+                          />
+                        </div>
+                        <button
+                          onClick={() => fetchListingFromUrl(idx, listing.url)}
+                          disabled={fetchingListing === idx || !listing.url.trim()}
+                          style={{
+                            background: fetchingListing === idx ? 'var(--surface)' : 'linear-gradient(135deg, var(--accent), #b8944f)',
+                            color: fetchingListing === idx ? 'var(--text-muted)' : '#000',
+                            border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+                            cursor: fetchingListing === idx || !listing.url.trim() ? 'not-allowed' : 'pointer',
+                            whiteSpace: 'nowrap', opacity: !listing.url.trim() ? 0.5 : 1,
+                          }}>
+                          {fetchingListing === idx ? 'Importing...' : 'Import'}
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 10px', color: 'var(--text-muted)', fontSize: 12 }}>
+                      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                      <span>or paste manually</span>
+                      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                    </div>
                     <div className="form-group">
                       <textarea className="textarea" rows={5}
                         placeholder="Paste the full job description here..."
@@ -969,7 +1038,7 @@ export default function Onboard() {
                     </div>
                   </div>
                 ))}
-                <button onClick={() => setJobListings(prev => [...prev, { title: '', description: '' }])} style={{
+                <button onClick={() => setJobListings(prev => [...prev, { title: '', description: '', url: '' }])} style={{
                   background: 'transparent', border: '1px dashed var(--border)', borderRadius: 10,
                   padding: '10px 16px', color: 'var(--accent)', cursor: 'pointer', fontSize: 14,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
