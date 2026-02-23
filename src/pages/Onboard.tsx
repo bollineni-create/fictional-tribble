@@ -98,7 +98,7 @@ export default function Onboard() {
   const [company, setCompany] = useState('')
   const [industry, setIndustry] = useState('Technology')
   const [hasListing, setHasListing] = useState(false)
-  const [jobDescription, setJobDescription] = useState('')
+  const [jobListings, setJobListings] = useState<{ title: string; description: string }[]>([{ title: '', description: '' }])
 
   // Customize fields
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
@@ -304,7 +304,10 @@ export default function Onboard() {
           type: 'resume',
           jobTitle: jobTitle.trim(),
           company: company.trim(),
-          jobDescription: jobDescription.trim(),
+          jobDescription: jobListings
+            .filter(l => l.description.trim())
+            .map((l, i) => l.title.trim() ? `[${l.title.trim()}]: ${l.description.trim()}` : l.description.trim())
+            .join('\n\n---\n\n'),
           experience: profile.experience
             .filter(e => e.category === 'professional' || e.category === 'leadership')
             .map(e => `${e.title} at ${e.company} (${e.startDate} - ${e.endDate}): ${(e.bullets || []).filter(Boolean).join('. ')}`)
@@ -925,14 +928,55 @@ export default function Onboard() {
           <div style={{ marginTop: 16 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text)', cursor: 'pointer', marginBottom: 12 }}>
               <input type="checkbox" checked={hasListing} onChange={e => setHasListing(e.target.checked)} />
-              I have a specific job listing
+              I have specific job listings
             </label>
             {hasListing && (
-              <div className="form-group">
-                <label className="label">Paste the Job Description</label>
-                <textarea className="textarea" rows={6}
-                  placeholder="Paste the full job description here for the best tailoring results..."
-                  value={jobDescription} onChange={e => setJobDescription(e.target.value)} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {jobListings.map((listing, idx) => (
+                  <div key={idx} style={{
+                    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+                    padding: 16, position: 'relative',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                        Listing {idx + 1}
+                      </span>
+                      {jobListings.length > 1 && (
+                        <button onClick={() => setJobListings(prev => prev.filter((_, i) => i !== idx))} style={{
+                          background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                          cursor: 'pointer', fontSize: 16, padding: '2px 6px', borderRadius: 6,
+                        }}>×</button>
+                      )}
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 10 }}>
+                      <input className="input" placeholder="Job title or company (optional label)"
+                        value={listing.title}
+                        onChange={e => {
+                          const updated = [...jobListings]
+                          updated[idx] = { ...updated[idx], title: e.target.value }
+                          setJobListings(updated)
+                        }} />
+                    </div>
+                    <div className="form-group">
+                      <textarea className="textarea" rows={5}
+                        placeholder="Paste the full job description here..."
+                        value={listing.description}
+                        onChange={e => {
+                          const updated = [...jobListings]
+                          updated[idx] = { ...updated[idx], description: e.target.value }
+                          setJobListings(updated)
+                        }} />
+                    </div>
+                  </div>
+                ))}
+                <button onClick={() => setJobListings(prev => [...prev, { title: '', description: '' }])} style={{
+                  background: 'transparent', border: '1px dashed var(--border)', borderRadius: 10,
+                  padding: '10px 16px', color: 'var(--accent)', cursor: 'pointer', fontSize: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  transition: 'border-color 0.15s',
+                }}>
+                  + Add Another Listing
+                </button>
               </div>
             )}
           </div>
