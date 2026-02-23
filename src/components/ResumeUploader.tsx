@@ -1,5 +1,14 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useToast } from './Toast'
+
+// Pre-load PDF.js library on module load so it's cached for when the user uploads
+let pdfjsCache: typeof import('pdfjs-dist') | null = null
+const pdfjsReady = import('pdfjs-dist').then((lib) => {
+  // Use jsdelivr which mirrors npm packages directly — cdnjs may not have v5+ and uses wrong file extension
+  lib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${lib.version}/build/pdf.worker.min.mjs`
+  pdfjsCache = lib
+  return lib
+}).catch(() => null)
 
 interface ResumeUploaderProps {
   onParsed: (text: string) => void | Promise<void>
@@ -13,22 +22,24 @@ export default function ResumeUploader({ onParsed, loading }: ResumeUploaderProp
   const inputRef = useRef<HTMLInputElement>(null)
   const { showToast } = useToast()
 
+  // Warm up PDF.js worker on mount (pre-fetches from CDN)
+  useEffect(() => { pdfjsReady }, [])
+
   const extractTextFromPdf = async (file: File): Promise<string> => {
-    const pdfjsLib = await import('pdfjs-dist')
-    // Use jsdelivr which mirrors npm packages directly — cdnjs may not have v5+ and uses wrong file extension
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+    const pdfjsLib = pdfjsCache || await pdfjsReady
+    if (!pdfjsLib) throw new Error('Failed to load PDF library')
 
     const arrayBuffer = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-    const pages: string[] = []
 
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i)
+    // Process all pages in parallel instead of sequentially
+    const pagePromises = Array.from({ length: pdf.numPages }, async (_, i) => {
+      const page = await pdf.getPage(i + 1)
       const content = await page.getTextContent()
-      const text = content.items.map((item: any) => item.str).join(' ')
-      pages.push(text)
-    }
+      return content.items.map((item: any) => item.str).join(' ')
+    })
 
+    const pages = await Promise.all(pagePromises)
     return pages.join('\n\n')
   }
 

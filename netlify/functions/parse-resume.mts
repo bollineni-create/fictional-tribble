@@ -111,20 +111,39 @@ Rules:
 - Do NOT invent or fabricate any data — only extract what's present
 - For the summary, use the professional summary/objective if present, otherwise null`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: `Parse this resume:\n\n${resumeText}` }],
-      }),
-    });
+    // 30-second timeout to prevent indefinite hanging
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    let response: Response;
+    try {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 4000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: `Parse this resume:\n\n${resumeText}` }],
+        }),
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(timeout);
+      if (fetchErr.name === 'AbortError') {
+        return new Response(
+          JSON.stringify({ error: "Resume parsing timed out. Please try again." }),
+          { status: 504, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      throw fetchErr;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       console.error("Anthropic API error:", await response.text());
