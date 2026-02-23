@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { useToast } from './Toast'
 
 interface ResumeUploaderProps {
-  onParsed: (text: string) => void
+  onParsed: (text: string) => void | Promise<void>
   loading: boolean
 }
 
@@ -15,8 +15,8 @@ export default function ResumeUploader({ onParsed, loading }: ResumeUploaderProp
 
   const extractTextFromPdf = async (file: File): Promise<string> => {
     const pdfjsLib = await import('pdfjs-dist')
-    // Use the bundled worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+    // Use jsdelivr which mirrors npm packages directly — cdnjs may not have v5+ and uses wrong file extension
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
 
     const arrayBuffer = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
@@ -70,11 +70,11 @@ export default function ResumeUploader({ onParsed, loading }: ResumeUploaderProp
         return
       }
 
-      onParsed(text)
+      setExtracting(false)
+      await onParsed(text)
     } catch (err) {
       console.error('File extraction error:', err)
       showToast('Failed to read file. Try a different format.')
-    } finally {
       setExtracting(false)
     }
   }, [onParsed, showToast])

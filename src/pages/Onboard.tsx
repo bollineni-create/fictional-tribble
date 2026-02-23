@@ -136,11 +136,17 @@ export default function Onboard() {
     setParsing(true)
     try {
       const headers = await getAuthHeaders()
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000)
+
       const res = await fetch('/api/parse-resume', {
         method: 'POST',
         headers,
         body: JSON.stringify({ resumeText: text }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
 
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Parsing failed')
@@ -150,7 +156,11 @@ export default function Onboard() {
       setStep('review')
       showToast('Resume parsed successfully!')
     } catch (err: any) {
-      showToast(err.message || 'Failed to parse resume')
+      if (err.name === 'AbortError') {
+        showToast('Parsing timed out. Please try again.')
+      } else {
+        showToast(err.message || 'Failed to parse resume')
+      }
     } finally {
       setParsing(false)
     }
