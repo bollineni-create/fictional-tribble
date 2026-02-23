@@ -4,13 +4,14 @@ import { useToast } from './Toast'
 // Pre-load PDF.js library on module load so it's cached for when the user uploads
 let pdfjsCache: typeof import('pdfjs-dist') | null = null
 const pdfjsReady = import('pdfjs-dist').then((lib) => {
-  lib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${lib.version}/pdf.worker.min.js`
+  // Use jsdelivr which mirrors npm packages directly — cdnjs may not have v5+ and uses wrong file extension
+  lib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${lib.version}/build/pdf.worker.min.mjs`
   pdfjsCache = lib
   return lib
 }).catch(() => null)
 
 interface ResumeUploaderProps {
-  onParsed: (text: string) => void
+  onParsed: (text: string) => void | Promise<void>
   loading: boolean
 }
 
@@ -80,11 +81,11 @@ export default function ResumeUploader({ onParsed, loading }: ResumeUploaderProp
         return
       }
 
-      onParsed(text)
+      setExtracting(false)
+      await onParsed(text)
     } catch (err) {
       console.error('File extraction error:', err)
       showToast('Failed to read file. Try a different format.')
-    } finally {
       setExtracting(false)
     }
   }, [onParsed, showToast])
