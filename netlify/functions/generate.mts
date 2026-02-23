@@ -123,40 +123,62 @@ export default async (req: Request, context: Context) => {
     const hasMasterProfile = masterProfile && masterProfile.fullName;
 
     const resumeSystemPrompt = hasMasterProfile
-      ? `You are an expert resume writer. Generate a resume using EXACTLY this template format. Do NOT deviate from this structure. Do NOT use markdown syntax like ** or ##. Do NOT add any sections not listed below.
+      ? `You are an expert resume writer. Generate a resume using EXACTLY this template format. Do NOT deviate. Do NOT use markdown like ** or ##.
 
-TEMPLATE:
-[FULL NAME]
-[Email] | [Phone] | [Location]
+TEMPLATE FORMAT:
+[FULL NAME IN ALL CAPS]
+[EMAIL] | [PHONE] | [LINKEDIN URL]
 
-PROFESSIONAL SUMMARY
-[2-3 sentence tailored summary for the target role]
+PROFESSIONAL EXPERIENCE
+[Company Name]                                    [Month Year – Month Year or Present]
+[Job Title]
+• [Achievement bullet with metrics]
+• [Achievement bullet with metrics]
 
-EXPERIENCE
-[Job Title] — [Company]
-[Start Date] – [End Date] | [Location]
-• [Achievement with metrics]
-• [Achievement with metrics]
-• [Achievement with metrics]
+[Repeat for each role, most recent first]
 
-[Repeat for each position]
+LEADERSHIP
+[Organization Name]                               [Month Year – Month Year]
+[Role Title]
+• [Achievement bullet]
 
 EDUCATION
-[Degree], [School] — [Year]
+[School Name]
+[Degree details, honors, minors]
 
-SKILLS
-[Comma-separated skills list, prioritized for the target job]
-
-CERTIFICATIONS
-[Cert name — Year] (only if certifications exist, otherwise omit this section entirely)
+CERTIFICATIONS & SKILLS
+Certifications: [comma-separated list]
+Software: [comma-separated list]
+Languages: [comma-separated list]
 
 Rules:
-- Use strong action verbs and quantify achievements where possible
+- Company name is BOLD, dates are ITALIC right-aligned on the same line
+- Job title is ITALIC on the next line below company
+- Use strong action verbs, quantify achievements with metrics
 - Prioritize skills and achievements relevant to the TARGET JOB
-- Keep it to 1-2 pages worth of content
-- Every bullet point should demonstrate impact with metrics when possible
-- Do NOT invent experience or skills not present in the source data`
-      : `You are an expert resume writer and career coach. Create a polished, ATS-optimized resume based on the user's information. Format it cleanly with clear sections: PROFESSIONAL SUMMARY, EXPERIENCE, SKILLS, and EDUCATION. Use strong action verbs and quantify achievements where possible. Output clean formatted text. Do NOT use markdown syntax like ** or ##.`;
+- Keep to 1 page of content
+- Do NOT invent experience or skills not in the source data
+- Do NOT add PROFESSIONAL SUMMARY section — go straight to experience
+- Include HONORS & AWARDS and PUBLICATIONS only if the candidate has them`
+      : `You are an expert resume writer. Create an ATS-optimized resume. Use this exact format:
+
+[FULL NAME IN ALL CAPS]
+[Contact info separated by pipes |]
+
+PROFESSIONAL EXPERIENCE
+[Company]                                         [Dates]
+[Title]
+• [Achievement with metrics]
+
+EDUCATION
+[School]
+[Degree]
+
+CERTIFICATIONS & SKILLS
+Software: [list]
+Languages: [list]
+
+Do NOT use markdown like ** or ##. Company names should be on the same line as dates. Job titles on the next line. Use strong action verbs and quantify achievements.`;
 
     const coverLetterSystemPrompt = `You are an expert cover letter writer. Write a compelling, personalized cover letter for the specified job. It should be 3-4 paragraphs, demonstrate knowledge of the company, highlight relevant experience, and end with a strong call to action. Output clean formatted text. Do NOT use markdown syntax like ** or ##.`;
 
