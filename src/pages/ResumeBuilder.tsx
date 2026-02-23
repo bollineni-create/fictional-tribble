@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase, withTimeout } from '../lib/supabase'
+import { supabase, withTimeout, getValidSession } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import UpgradeModal from '../components/UpgradeModal'
 
@@ -118,7 +118,7 @@ export default function ResumeBuilder() {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       try {
-        const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
+        const s = await getValidSession()
         if (s) headers['Authorization'] = 'Bearer ' + s.access_token
       } catch {}
 
@@ -207,7 +207,7 @@ export default function ResumeBuilder() {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       try {
-        const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
+        const s = await getValidSession()
         if (s) headers['Authorization'] = 'Bearer ' + s.access_token
       } catch {}
 
@@ -247,7 +247,7 @@ export default function ResumeBuilder() {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       try {
-        const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
+        const s = await getValidSession()
         if (s) headers['Authorization'] = 'Bearer ' + s.access_token
       } catch {}
 
@@ -286,7 +286,7 @@ export default function ResumeBuilder() {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       try {
-        const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
+        const s = await getValidSession()
         if (s) headers['Authorization'] = 'Bearer ' + s.access_token
       } catch {}
 

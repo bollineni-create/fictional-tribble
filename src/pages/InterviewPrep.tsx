@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase, withTimeout } from '../lib/supabase'
+import { supabase, withTimeout, getValidSession } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import UpgradeModal from '../components/UpgradeModal'
 
@@ -37,7 +37,7 @@ export default function InterviewPrep() {
   const getAuthHeaders = async () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     try {
-      const { data: { session } } = await withTimeout(supabase.auth.getSession(), 5000)
+      const session = await getValidSession()
       if (session) headers['Authorization'] = 'Bearer ' + session.access_token
     } catch {}
     return headers
