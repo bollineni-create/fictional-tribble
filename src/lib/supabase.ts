@@ -21,3 +21,16 @@ export function withTimeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
     ),
   ])
 }
+
+/**
+ * Returns a valid (non-expired) session, refreshing the token if needed.
+ * getSession() alone can return a stale cached token, causing 401s.
+ */
+export async function getValidSession() {
+  let { data: { session } } = await withTimeout(supabase.auth.getSession(), 5000)
+  if (session?.expires_at && session.expires_at * 1000 < Date.now() + 60000) {
+    const { data } = await withTimeout(supabase.auth.refreshSession(), 5000)
+    session = data.session
+  }
+  return session
+}

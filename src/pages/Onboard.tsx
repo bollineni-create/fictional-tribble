@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase, withTimeout } from '../lib/supabase'
+import { supabase, withTimeout, getValidSession } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import ResumeUploader from '../components/ResumeUploader'
 import AuthModal from '../components/AuthModal'
@@ -120,7 +120,7 @@ export default function Onboard() {
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     try {
-      const { data: { session: s } } = await withTimeout(supabase.auth.getSession(), 5000)
+      const s = await getValidSession()
       if (s) headers['Authorization'] = 'Bearer ' + s.access_token
     } catch {}
     return headers
