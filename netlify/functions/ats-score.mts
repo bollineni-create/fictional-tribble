@@ -97,20 +97,39 @@ Return ONLY valid JSON, no markdown or explanation.`;
       ? `Analyze this resume for ATS compatibility against the following job description.\n\nRESUME:\n${resumeContent}\n\nJOB DESCRIPTION:\n${jobDescription}`
       : `Analyze this resume for general ATS compatibility.\n\nRESUME:\n${resumeContent}`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
-      }),
-    });
+    // 30-second timeout to prevent indefinite hanging
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    let response: Response;
+    try {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(timeout);
+      if (fetchErr.name === 'AbortError') {
+        return new Response(
+          JSON.stringify({ error: "ATS analysis timed out. Please try again." }),
+          { status: 504, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      throw fetchErr;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       console.error("Anthropic API error:", await response.text());

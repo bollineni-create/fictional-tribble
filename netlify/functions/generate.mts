@@ -272,21 +272,28 @@ async function checkTier(authHeader: string): Promise<string> {
     const supabaseUrl = Netlify.env.get("SUPABASE_URL");
     const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) return "free";
+    // Get user first (needed for profile lookup)
     const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: { Authorization: `Bearer ${token}`, apikey: supabaseServiceKey },
     });
     if (!userRes.ok) return "free";
     const user = await userRes.json();
-    const profileRes = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro,tier`,
-      { headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` } }
-    );
-    if (!profileRes.ok) return "free";
-    const profiles = await profileRes.json();
-    if (profiles.length === 0) return "free";
-    const p = profiles[0];
-    if (p.tier) return p.tier;
-    return p.is_pro ? "pro" : "free";
+    // Profile fetch with 5s timeout to avoid hanging
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const profileRes = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=is_pro,tier`,
+        { headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` }, signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      if (!profileRes.ok) return "free";
+      const profiles = await profileRes.json();
+      if (profiles.length === 0) return "free";
+      const p = profiles[0];
+      if (p.tier) return p.tier;
+      return p.is_pro ? "pro" : "free";
+    } catch { clearTimeout(timeout); return "free"; }
   } catch { return "free"; }
 }
 
