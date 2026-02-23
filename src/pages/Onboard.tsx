@@ -117,6 +117,11 @@ export default function Onboard() {
   // Fetch listing from URL tracking
   const [fetchingListing, setFetchingListing] = useState<number | null>(null)
 
+  // Post-generation auto-flow tracking
+  const [autoFlowStatus, setAutoFlowStatus] = useState<string | null>(null)
+  const [autoFlowDone, setAutoFlowDone] = useState(false)
+  const [savedResumeId, setSavedResumeId] = useState<string | null>(null)
+
   // Check for existing profile on mount
   useEffect(() => {
     if (!user) return
@@ -389,13 +394,77 @@ export default function Onboard() {
         date: new Date().toDateString(), count,
       }))
 
+      setAutoFlowDone(false)
+      setSavedResumeId(null)
       setStep('result')
+
+      // Kick off auto-flow (runs in background while result is shown)
+      runPostGenerationFlow(data.result)
     } catch (err: any) {
       showToast(err.message || 'Generation failed')
       setStep('customize')
     } finally {
       setGenerating(false)
     }
+  }
+
+  // ---- POST-GENERATION AUTO-FLOW ----
+  const runPostGenerationFlow = async (generatedContent: string) => {
+    if (!user) return
+
+    const title = company.trim() ? `${jobTitle.trim()} — ${company.trim()}` : jobTitle.trim() || 'Resume'
+
+    // 1. Save resume
+    setAutoFlowStatus('Saving your resume...')
+    try {
+      const { data: saveData } = await supabase.from('saved_resumes').insert({
+        user_id: user.id, title, type: 'resume',
+        content: generatedContent, job_title: jobTitle.trim(), company: company.trim(),
+      }).select('id').single()
+      if (saveData?.id) setSavedResumeId(saveData.id)
+    } catch {}
+
+    // 2. Update skills in extended profile
+    setAutoFlowStatus('Updating your skills profile...')
+    try {
+      await supabase.from('user_profiles_extended').upsert({
+        user_id: user.id,
+        skills: selectedSkills,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+    } catch {}
+
+    // 3. Set job preferences
+    setAutoFlowStatus('Setting job preferences...')
+    try {
+      await supabase.from('job_preferences').upsert({
+        user_id: user.id,
+        desired_titles: [jobTitle.trim()].filter(Boolean),
+        industries: [industry].filter(Boolean),
+        remote_ok: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+    } catch {}
+
+    // 4. Export PDF (for Pro users)
+    if (isPro) {
+      setAutoFlowStatus('Exporting PDF...')
+      try {
+        const headers = await getAuthHeaders()
+        const res = await fetch('/api/export-pdf', {
+          method: 'POST', headers,
+          body: JSON.stringify({ content: generatedContent, title, type: 'resume' }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const w = window.open('', '_blank')
+          if (w) { w.document.write(data.html); w.document.close() }
+        }
+      } catch {}
+    }
+
+    setAutoFlowStatus(null)
+    setAutoFlowDone(true)
   }
 
   const copyResult = () => {
@@ -1141,7 +1210,6 @@ export default function Onboard() {
           <div className="result-header">
             <h2 className="result-title">&#128196; Your Tailored Resume</h2>
             <div className="result-actions">
-              {user && <button className="save-btn" onClick={saveResume}>&#128190; Save</button>}
               <button className="copy-btn" onClick={copyResult}>&#128203; Copy</button>
               <button className="pro-export-btn" onClick={exportDocx} disabled={exportLoading}>
                 &#11015; DOCX {!isPro && '(Pro)'}
@@ -1152,6 +1220,35 @@ export default function Onboard() {
             </div>
           </div>
 
+          {/* Auto-flow status banner */}
+          {autoFlowStatus && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(201,169,110,0.08), rgba(201,169,110,0.03))',
+              border: '1px solid rgba(201,169,110,0.25)', borderRadius: 10,
+              padding: '12px 18px', marginBottom: 16,
+              display: 'flex', alignItems: 'center', gap: 10,
+              animation: 'fadeIn 0.3s ease-out',
+            }}>
+              <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+              <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 500 }}>{autoFlowStatus}</span>
+            </div>
+          )}
+
+          {/* Auto-flow complete banner */}
+          {autoFlowDone && !autoFlowStatus && (
+            <div style={{
+              background: 'rgba(92,184,92,0.08)', border: '1px solid rgba(92,184,92,0.25)',
+              borderRadius: 10, padding: '12px 18px', marginBottom: 16,
+              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+              animation: 'fadeIn 0.3s ease-out',
+            }}>
+              <span style={{ fontSize: 15 }}>&#10003;</span>
+              <span style={{ fontSize: 13, color: '#5cb85c', fontWeight: 500, flex: 1 }}>
+                Resume saved &bull; Skills updated &bull; Job preferences set{isPro ? ' \u2022 PDF exported' : ''}
+              </span>
+            </div>
+          )}
+
           <div className="result-box">
             <pre className="result-text">{resultContent}</pre>
           </div>
@@ -1161,17 +1258,8 @@ export default function Onboard() {
               &#128260; Tweak &amp; Regenerate
             </button>
             <button className="generate-btn" onClick={() => {
-              // Also save the generated result automatically
-              if (user && resultContent) {
-                const title = company.trim() ? `${jobTitle.trim()} — ${company.trim()}` : jobTitle.trim()
-                supabase.from('saved_resumes').insert({
-                  user_id: user.id, title: title || 'Resume', type: 'resume',
-                  content: resultContent, job_title: jobTitle.trim(), company: company.trim(),
-                }).then(() => {})
-              }
-              // Navigate to jobs with pre-filled search query
               const searchQuery = jobTitle.trim()
-              navigate(searchQuery ? `/jobs?q=${encodeURIComponent(searchQuery)}` : '/jobs')
+              navigate(searchQuery ? `/jobs?q=${encodeURIComponent(searchQuery)}&auto=1` : '/jobs')
             }}
               style={{ flex: 1, background: 'var(--surface)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
               &#128269; Find Matching Jobs &rarr;
@@ -1179,7 +1267,7 @@ export default function Onboard() {
           </div>
 
           <div className="retry-tip" style={{ marginTop: 16 }}>
-            &#128161; <strong>Tip:</strong> Your profile is saved. When you find a job listing, come back and we'll tailor your resume specifically for that role.
+            &#128161; <strong>Tip:</strong> Your resume was auto-saved and your job preferences were set from your target role. Head to Job Search to find matching opportunities!
           </div>
         </div>
       )}
