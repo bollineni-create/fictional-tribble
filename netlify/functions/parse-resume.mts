@@ -30,9 +30,17 @@ export default async (req: Request, context: Context) => {
     const token = authHeader.replace("Bearer ", "");
     const supabaseUrl = Netlify.env.get("SUPABASE_URL");
     const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars");
-      throw new Error("Missing config");
+    if (!supabaseUrl) {
+      return new Response(
+        JSON.stringify({ error: "Server config error: SUPABASE_URL not set. Please add it in Netlify env vars." }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    if (!supabaseServiceKey) {
+      return new Response(
+        JSON.stringify({ error: "Server config error: SUPABASE_SERVICE_ROLE_KEY not set. Please add it in Netlify env vars." }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
@@ -41,14 +49,17 @@ export default async (req: Request, context: Context) => {
     if (!userRes.ok) {
       const errText = await userRes.text();
       console.error("Supabase auth failed:", userRes.status, errText);
-      throw new Error("Invalid token");
+      return new Response(
+        JSON.stringify({ error: `Auth failed (${userRes.status}): Your session may have expired. Please sign out and sign back in.` }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
     }
     const user = await userRes.json();
     userId = user.id;
   } catch (authErr: any) {
     console.error("Auth error:", authErr.message);
     return new Response(
-      JSON.stringify({ error: "Invalid authentication" }),
+      JSON.stringify({ error: `Auth error: ${authErr.message}` }),
       { status: 401, headers: { "Content-Type": "application/json" } }
     );
   }
