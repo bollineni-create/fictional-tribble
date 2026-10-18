@@ -22,7 +22,7 @@ const state = {
   csv: null, // { name, bars } when the user imports real data
   chat: store.get("chat", []),
   saved: store.get("saved", []),
-  watchlist: store.get("watchlist", ["DEMO", "ALPHA", "BETA"]),
+  watchlist: store.get("watchlist", ["SPY", "AAPL", "BTC-USD"]),
   alerts: store.get("alerts", []),
   deployments: store.get("deployments", []),
   activity: store.get("activity", []),
@@ -113,13 +113,41 @@ $("#code").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) runAndShow();
 });
 
-function currentData() {
+async function fetchJson(url) {
+  const res = await fetch(url);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
+const historyCache = new Map();
+async function liveHistory(symbol) {
+  if (!historyCache.has(symbol)) {
+    const p = fetchJson(`/api/history?symbol=${encodeURIComponent(symbol)}&years=3`);
+    historyCache.set(symbol, p);
+    p.catch(() => historyCache.delete(symbol));
+    setTimeout(() => historyCache.delete(symbol), 10 * 60e3);
+  }
+  return historyCache.get(symbol);
+}
+
+async function currentData() {
   if (state.csv) {
     $("#data-note").textContent = `Using imported data: ${state.csv.name} (${state.csv.bars.length} bars, ${day(state.csv.bars[0].time)} → ${day(state.csv.bars.at(-1).time)}).`;
     return toSeries(state.csv.bars);
   }
-  const sym = ($("#symbol").value.trim() || "DEMO").toUpperCase();
-  $("#data-note").textContent = `Using simulated daily data for "${sym}" (750 bars). Each symbol name produces a different repeatable series. Import a CSV (Date, Open, High, Low, Close, Volume) to test on real prices.`;
+  const sym = ($("#symbol").value.trim() || "SPY").toUpperCase();
+  if ($("#data-source").value === "live") {
+    $("#data-note").textContent = `Loading ${sym} from the market data provider…`;
+    try {
+      const h = await liveHistory(sym);
+      $("#data-note").textContent = `${h.name} (${h.symbol}): ${h.bars.length} daily bars, ${day(h.bars[0].time)} → ${day(h.bars.at(-1).time)}, from ${h.source}. Prices in ${h.currency}.`;
+      return toSeries(h.bars);
+    } catch (err) {
+      throw new Error(`Couldn't load live data for ${sym}: ${err.message}. Check the symbol (stocks like AAPL, indices like ^GSPC, crypto like BTC-USD) or switch Data to Simulated.`);
+    }
+  }
+  $("#data-note").textContent = `Using simulated daily data for "${sym}" (750 bars). Each symbol name produces a different repeatable series.`;
   return toSeries(simulatedBars(sym));
 }
 
@@ -130,12 +158,14 @@ $("#csv").addEventListener("change", async (e) => {
     state.csv = { name: file.name, bars: parseCSV(await file.text()) };
     $("#symbol").value = file.name.replace(/\.csv$/i, "").toUpperCase().slice(0, 12);
     $("#symbol").disabled = true;
+    $("#data-source").disabled = true;
     runAndShow();
   } catch (err) {
     showError(err.message);
   }
 });
 $("#symbol").addEventListener("change", runAndShow);
+$("#data-source").addEventListener("change", runAndShow);
 
 function showError(msg) {
   $("#error").hidden = !msg;
@@ -143,10 +173,13 @@ function showError(msg) {
 }
 
 let lastResult = null;
-function runAndShow() {
+let runSeq = 0;
+async function runAndShow() {
   showError("");
+  const seq = ++runSeq;
   try {
-    const data = currentData();
+    const data = await currentData();
+    if (seq !== runSeq) return; // a newer run started while data was loading
     const result = runBacktest(data, $("#code").value, {
       capital: Number($("#capital").value) || 10000,
       feeBps: (Number($("#cost").value) || 0) / 2,
@@ -229,11 +262,12 @@ $("#deploy-strategy").addEventListener("click", () => {
   } catch (err) {
     return showError(err.message);
   }
-  const symbol = state.csv ? "DEMO" : ($("#symbol").value.trim() || "DEMO").toUpperCase();
+  const symbol = state.csv ? "SPY" : ($("#symbol").value.trim() || "SPY").toUpperCase();
+  const mode = state.csv ? "live" : $("#data-source").value;
   if (!state.watchlist.includes(symbol)) state.watchlist.push(symbol);
-  state.deployments.push({ id: crypto.randomUUID(), name: $("#strategy-name").value, code: $("#code").value, symbol, capital: 10000, cash: 10000, shares: 0, entryPrice: null, trades: 0, active: true });
+  state.deployments.push({ id: crypto.randomUUID(), name: $("#strategy-name").value, code: $("#code").value, symbol, capital: 10000, cash: 10000, shares: 0, entryPrice: null, trades: 0, active: true, mode });
   persistMonitor();
-  log(`Started paper trading "${$("#strategy-name").value}" on ${symbol} with $10,000.`);
+  log(`Started paper trading "${$("#strategy-name").value}" on ${symbol} (${mode === "live" ? "live data" : "simulated feed"}) with $10,000.`);
   flash($("#deploy-strategy"), "Deployed ✓");
 });
 
@@ -269,35 +303,103 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// ---------- monitor: simulated live feed + paper trading ----------
-const feeds = new Map(); // symbol -> { bars, rand, state }
+// ---------- monitor: live or simulated feed + paper trading ----------
+// Each feed holds daily bars for one symbol. In live mode the last bar is the
+// forming bar for the current session, updated from each quote poll.
+const feeds = new Map(); // `${mode}:${symbol}` -> { status, bars, quote, error, source, rand, sim }
+const feedMode = () => $("#feed-mode").value;
 
-function feed(symbol) {
-  if (!feeds.has(symbol)) {
-    const bars = simulatedBars(symbol).slice(-400);
-    const rets = bars.slice(-60).map((b, i, a) => (i ? Math.log(b.close / a[i - 1].close) : 0)).slice(1);
-    const vol = Math.sqrt(rets.reduce((s, r) => s + r * r, 0) / rets.length);
-    feeds.set(symbol, { bars, rand: rng(Date.now() ^ symbol.length * 7919), state: { drift: 0, vol } });
+function feed(symbol, mode = feedMode()) {
+  const key = `${mode}:${symbol}`;
+  let f = feeds.get(key);
+  if (f && !(f.status === "error" && Date.now() > f.retryAt)) return f;
+  f = { status: "loading", bars: [] };
+  feeds.set(key, f);
+  if (mode === "sim") {
+    f.bars = simulatedBars(symbol).slice(-400);
+    const rets = f.bars.slice(-60).map((b, i, a) => (i ? Math.log(b.close / a[i - 1].close) : 0)).slice(1);
+    f.sim = { drift: 0, vol: Math.sqrt(rets.reduce((s, r) => s + r * r, 0) / rets.length) };
+    f.rand = rng(Date.now() ^ (symbol.length * 7919));
+    f.source = "Simulated";
+    f.status = "ready";
+  } else {
+    liveHistory(symbol).then(
+      (h) => {
+        f.bars = h.bars.slice(-400).map((b) => ({ ...b }));
+        f.source = h.source;
+        f.status = "ready";
+        renderMonitorIfVisible();
+      },
+      (err) => {
+        Object.assign(f, { status: "error", error: err.message, retryAt: Date.now() + 60e3 });
+        renderMonitorIfVisible();
+      }
+    );
   }
-  return feeds.get(symbol);
+  return f;
 }
 
-function tick() {
-  for (const sym of state.watchlist) {
-    const f = feed(sym);
-    const last = f.bars.at(-1);
-    f.bars.push(nextBar(last.close, last.time + 864e5, f.rand, f.state));
+function applyQuote(f, q) {
+  f.quote = q;
+  const last = f.bars.at(-1);
+  const qTime = Date.parse(`${q.day}T00:00:00Z`);
+  if (!last || qTime > last.time) {
+    f.bars.push({ time: qTime, open: q.price, high: Math.max(q.high ?? q.price, q.price), low: Math.min(q.low ?? q.price, q.price), close: q.price, volume: q.volume || 0 });
     if (f.bars.length > 600) f.bars.shift();
+  } else if (qTime === last.time) {
+    last.close = q.price;
+    last.high = Math.max(last.high, q.high ?? q.price, q.price);
+    last.low = Math.min(last.low, q.low ?? q.price, q.price);
+    if (q.volume) last.volume = q.volume;
+  }
+}
+
+let polling = false;
+async function tick() {
+  const mode = feedMode();
+  if (mode === "sim") {
+    for (const sym of state.watchlist) {
+      const f = feed(sym, "sim");
+      const last = f.bars.at(-1);
+      f.bars.push(nextBar(last.close, last.time + 864e5, f.rand, f.sim));
+      if (f.bars.length > 600) f.bars.shift();
+    }
+  } else {
+    if (polling) return;
+    state.watchlist.forEach((s) => feed(s, "live"));
+    const ready = state.watchlist.filter((s) => feed(s, "live").status === "ready");
+    if (!ready.length) return renderMonitorIfVisible();
+    polling = true;
+    try {
+      const { quotes, errors } = await fetchJson(`/api/quotes?symbols=${ready.map(encodeURIComponent).join(",")}`);
+      for (const s of ready) {
+        const f = feed(s, "live");
+        if (quotes[s]) { applyQuote(f, quotes[s]); f.error = null; }
+        else f.error = errors[s] || "No quote";
+      }
+      $("#feed-note").textContent = `Last update ${new Date().toLocaleTimeString()}.`;
+    } catch (err) {
+      $("#feed-note").textContent = `Quote update failed: ${err.message}. Retrying.`;
+    } finally {
+      polling = false;
+    }
+    if (feedMode() !== mode) return;
   }
   checkAlerts();
   stepDeployments();
-  if ($("#view-monitor").classList.contains("active")) renderMonitor();
+  renderMonitorIfVisible();
+}
+
+function lastPrice(symbol) {
+  const f = feed(symbol);
+  return f.status === "ready" ? f.bars.at(-1).close : null;
 }
 
 function checkAlerts() {
   for (const a of state.alerts) {
     if (a.triggered) continue;
-    const price = feed(a.symbol).bars.at(-1).close;
+    const price = lastPrice(a.symbol);
+    if (price == null) continue;
     if ((a.dir === "above" && price >= a.price) || (a.dir === "below" && price <= a.price)) {
       a.triggered = true;
       log(`🔔 Alert: ${a.symbol} is ${a.dir} ${a.price.toFixed(2)} (now ${price.toFixed(2)}).`);
@@ -309,8 +411,10 @@ function checkAlerts() {
 
 function stepDeployments() {
   for (const d of state.deployments) {
-    if (!d.active) continue;
+    d.mode ??= "sim";
+    if (!d.active || d.mode !== feedMode()) continue;
     const f = feed(d.symbol);
+    if (f.status !== "ready" || f.bars.length < 2) continue;
     const data = toSeries(f.bars);
     const i = data.close.length - 1;
     const price = data.close[i];
@@ -322,23 +426,27 @@ function stepDeployments() {
       log(`⚠️ "${d.name}" stopped: ${err.message}`);
       continue;
     }
+    // Rule signals act at most once per daily bar; stops and targets can fire any time.
+    const canSignal = d.lastSignalBar !== data.time[i];
     if (d.shares > 0) {
-      const stopHit = strat.stopLoss && data.low[i] <= d.entryPrice * (1 - strat.stopLoss);
-      const targetHit = strat.takeProfit && data.high[i] >= d.entryPrice * (1 + strat.takeProfit);
-      if (stopHit || targetHit || strat.exit(i)) {
-        const fill = stopHit ? d.entryPrice * (1 - strat.stopLoss) : targetHit ? d.entryPrice * (1 + strat.takeProfit) : price;
-        const pnl = d.shares * (fill - d.entryPrice);
-        d.cash += d.shares * fill;
-        log(`SELL ${d.shares.toFixed(2)} ${d.symbol} @ ${fill.toFixed(2)} · "${d.name}" · ${stopHit ? "stop loss" : targetHit ? "take profit" : "exit signal"} · P&L ${money(pnl)}`);
+      const stopHit = strat.stopLoss && price <= d.entryPrice * (1 - strat.stopLoss);
+      const targetHit = strat.takeProfit && price >= d.entryPrice * (1 + strat.takeProfit);
+      const exitSignal = canSignal && strat.exit(i);
+      if (stopHit || targetHit || exitSignal) {
+        const pnl = d.shares * (price - d.entryPrice);
+        d.cash += d.shares * price;
+        log(`SELL ${d.shares.toFixed(4)} ${d.symbol} @ ${price.toFixed(2)} · "${d.name}" · ${stopHit ? "stop loss" : targetHit ? "take profit" : "exit signal"} · P&L ${money(pnl)}`);
         d.shares = 0;
         d.entryPrice = null;
         d.trades++;
+        d.lastSignalBar = data.time[i];
       }
-    } else if (strat.entry(i)) {
+    } else if (canSignal && strat.entry(i)) {
       d.shares = d.cash / price;
       d.entryPrice = price;
       d.cash = 0;
-      log(`BUY ${d.shares.toFixed(2)} ${d.symbol} @ ${price.toFixed(2)} · "${d.name}"`);
+      d.lastSignalBar = data.time[i];
+      log(`BUY ${d.shares.toFixed(4)} ${d.symbol} @ ${price.toFixed(2)} · "${d.name}"`);
     }
   }
   persistMonitor();
@@ -367,11 +475,24 @@ function renderActivity() {
     : `<li class="empty">Fills, alerts, and status changes will show up here.</li>`;
 }
 
+function renderMonitorIfVisible() {
+  if ($("#view-monitor").classList.contains("active")) renderMonitor();
+}
+
 function renderMonitor() {
-  $("#watchlist").innerHTML = `<thead><tr><th>Symbol</th><th>Last</th><th>Change</th><th></th></tr></thead><tbody>${state.watchlist
+  const mode = feedMode();
+  $("#watchlist").innerHTML = `<thead><tr><th>Symbol</th><th>Last</th><th>Change</th><th>Source</th><th></th></tr></thead><tbody>${state.watchlist
     .map((s) => {
-      const b = feed(s).bars, last = b.at(-1).close, prev = b.at(-2).close, ch = (last / prev - 1) * 100;
-      return `<tr><td><strong>${esc(s)}</strong></td><td>${last.toFixed(2)}</td><td class="${ch >= 0 ? "pos" : "neg"}">${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</td><td><button class="link" data-unwatch="${esc(s)}" title="Remove">✕</button></td></tr>`;
+      const f = feed(s);
+      const remove = `<button class="link" data-unwatch="${esc(s)}" title="Remove">✕</button>`;
+      if (f.status !== "ready") {
+        const msg = f.status === "error" ? `<span class="neg" title="${esc(f.error)}">${esc(f.error)}</span>` : `<span class="note">Loading…</span>`;
+        return `<tr><td><strong>${esc(s)}</strong></td><td colspan="3">${msg}</td><td>${remove}</td></tr>`;
+      }
+      const last = f.bars.at(-1).close;
+      const ch = mode === "live" && f.quote ? f.quote.changePct : (last / f.bars.at(-2).close - 1) * 100;
+      const age = mode === "live" && f.quote ? ` title="Quote time ${new Date(f.quote.time).toLocaleString()}"` : "";
+      return `<tr><td><strong>${esc(s)}</strong></td><td${age}>${last.toFixed(2)}</td><td class="${ch >= 0 ? "pos" : "neg"}">${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</td><td class="note">${esc(f.source)}${f.error ? " ⚠️" : ""}</td><td>${remove}</td></tr>`;
     })
     .join("")}</tbody>`;
 
@@ -384,11 +505,14 @@ function renderMonitor() {
     : `<li class="empty">No alerts yet.</li>`;
 
   $("#deployments").innerHTML = state.deployments.length
-    ? `<thead><tr><th>Strategy</th><th>Symbol</th><th>Status</th><th>Position</th><th>Equity</th><th>Return</th><th>Closed trades</th><th></th></tr></thead><tbody>${state.deployments
+    ? `<thead><tr><th>Strategy</th><th>Symbol</th><th>Feed</th><th>Status</th><th>Position</th><th>Equity</th><th>Return</th><th>Closed trades</th><th></th></tr></thead><tbody>${state.deployments
         .map((d) => {
-          const price = feed(d.symbol).bars.at(-1).close;
-          const eq = d.cash + d.shares * price, ret = (eq / d.capital - 1) * 100;
-          return `<tr><td>${esc(d.name)}</td><td>${esc(d.symbol)}</td><td>${d.active ? "Running" : "Stopped"}</td><td>${d.shares > 0 ? `Long @ ${d.entryPrice.toFixed(2)}` : "Flat"}</td><td>${money(eq)}</td><td class="${ret >= 0 ? "pos" : "neg"}">${ret.toFixed(2)}%</td><td>${d.trades}</td><td><button class="btn small" data-toggle-dep="${d.id}">${d.active ? "Stop" : "Resume"}</button> <button class="link" data-del-dep="${d.id}" title="Remove">✕</button></td></tr>`;
+          d.mode ??= "sim";
+          const f = d.mode === mode ? feed(d.symbol) : null;
+          const price = f?.status === "ready" ? f.bars.at(-1).close : d.entryPrice;
+          const eq = d.cash + d.shares * (price ?? 0), ret = (eq / d.capital - 1) * 100;
+          const status = !d.active ? "Stopped" : d.mode !== mode ? `Paused (switch to ${d.mode === "live" ? "live" : "simulated"} feed)` : "Running";
+          return `<tr><td>${esc(d.name)}</td><td>${esc(d.symbol)}</td><td>${d.mode === "live" ? "Live" : "Simulated"}</td><td>${status}</td><td>${d.shares > 0 ? `Long @ ${d.entryPrice.toFixed(2)}` : "Flat"}</td><td>${money(eq)}</td><td class="${ret >= 0 ? "pos" : "neg"}">${ret.toFixed(2)}%</td><td>${d.trades}</td><td><button class="btn small" data-toggle-dep="${d.id}">${d.active ? "Stop" : "Resume"}</button> <button class="link" data-del-dep="${d.id}" title="Remove">✕</button></td></tr>`;
         })
         .join("")}</tbody>`
     : `<tbody><tr><td class="empty">No paper strategies yet. Build one and click "Paper trade".</td></tr></tbody>`;
@@ -446,9 +570,16 @@ let timer = null;
 function startFeed() {
   clearInterval(timer);
   timer = setInterval(tick, Number($("#tick-speed").value));
+  tick();
   $("#feed-toggle").textContent = "Pause";
 }
 $("#tick-speed").addEventListener("change", () => timer && startFeed());
+$("#feed-mode").addEventListener("change", () => {
+  store.set("feedMode", feedMode());
+  $("#feed-note").textContent = "";
+  renderMonitor();
+  if (timer) tick();
+});
 $("#feed-toggle").addEventListener("click", () => {
   if (timer) {
     clearInterval(timer);
@@ -469,6 +600,7 @@ window.addEventListener("resize", () => lastResult && $("#view-build").classList
   pill.classList.toggle("on", state.ai);
   pill.title = state.ai ? "Strategies are generated by Claude." : "Set ANTHROPIC_API_KEY before starting the server to enable the AI builder.";
 
+  $("#feed-mode").value = store.get("feedMode", "live");
   loadStrategy(store.get("draft", LIBRARY[0]));
   renderChat();
   renderLibrary();

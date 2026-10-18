@@ -47,7 +47,14 @@
           </div>
           <textarea id="code" spellcheck="false" aria-label="Strategy code"></textarea>
           <div class="controls">
-            <label>Symbol <input id="symbol" value="DEMO" size="7" /></label>
+            <label>Data
+              <select id="data-source">
+                <option value="live" selected>Live market data</option>
+                <option value="sim">Simulated</option>
+              </select>
+            </label>
+            <label>Symbol <input id="symbol" value="SPY" size="9" list="symbol-hints" /></label>
+            <datalist id="symbol-hints"><option value="SPY"><option value="QQQ"><option value="AAPL"><option value="MSFT"><option value="NVDA"><option value="TSLA"><option value="^GSPC"><option value="BTC-USD"><option value="ETH-USD"><option value="SOL-USD"></datalist>
             <label>Capital <input id="capital" type="number" value="10000" min="100" step="100" /></label>
             <label>Fees+slip (bps) <input id="cost" type="number" value="10" min="0" step="1" /></label>
             <label class="file">Import CSV <input id="csv" type="file" accept=".csv,text/csv" /></label>
@@ -79,8 +86,11 @@
     <section id="view-monitor" class="view">
       <div class="monitor-bar panel">
         <div>
-          <strong>Simulated live feed</strong>
-          <span class="note">A new bar prints every <select id="tick-speed"><option value="1000">1s</option><option value="3000" selected>3s</option><option value="10000">10s</option></select>. Paper trading only. No real orders are sent.</span>
+          <select id="feed-mode" aria-label="Feed">
+            <option value="live" selected>Live market data</option>
+            <option value="sim">Simulated feed</option>
+          </select>
+          <span class="note">Updates every <select id="tick-speed"><option value="2000">2s</option><option value="5000" selected>5s</option><option value="15000">15s</option><option value="60000">60s</option></select>. <span id="feed-note"></span> Paper trading only. No real orders are sent.</span>
         </div>
         <button class="btn" id="feed-toggle">Pause</button>
       </div>

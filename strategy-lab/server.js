@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
 import { templateStrategy } from "./public/lib/templates.js";
+import { getHistory, getQuotes, stockProvider } from "./marketdata.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(here, "public");
@@ -81,7 +82,15 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
-    if (url.pathname === "/api/status") return send(res, 200, { ai: aiEnabled });
+    if (url.pathname === "/api/status") return send(res, 200, { ai: aiEnabled, stockProvider });
+    if (url.pathname === "/api/history") {
+      const years = Math.min(20, Math.max(1, Number(url.searchParams.get("years")) || 3));
+      return send(res, 200, await getHistory(url.searchParams.get("symbol"), years));
+    }
+    if (url.pathname === "/api/quotes") {
+      const symbols = (url.searchParams.get("symbols") || "").split(",").filter(Boolean);
+      return send(res, 200, await getQuotes(symbols));
+    }
     if (url.pathname === "/api/generate" && req.method === "POST") {
       const { prompt, currentCode } = await readJson(req);
       if (!prompt || typeof prompt !== "string") return send(res, 400, { error: "prompt is required" });
@@ -102,11 +111,12 @@ const server = http.createServer(async (req, res) => {
     send(res, 200, data, MIME[path.extname(file)] || "application/octet-stream");
   } catch (e) {
     if (e.code === "ENOENT") return send(res, 404, "Not found", "text/plain");
-    send(res, 500, { error: e.message });
+    send(res, e.status || 500, { error: e.message });
   }
 });
 
 server.listen(PORT, HOST, () => {
   console.log(`Strategy Lab running at http://${HOST}:${PORT}`);
+  console.log(`Market data: ${stockProvider} for stocks, Coinbase for crypto pairs (e.g. BTC-USD)`);
   console.log(aiEnabled ? "AI strategy builder: on (Claude)" : "AI strategy builder: off. Set ANTHROPIC_API_KEY to enable it; using the built-in builder.");
 });
