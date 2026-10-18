@@ -2,6 +2,7 @@ import { simulatedBars, parseCSV, toSeries, nextBar, rng } from "./lib/data.js";
 import { runBacktest, compileStrategy } from "./lib/backtest.js";
 import { lineChart } from "./lib/chart.js";
 import { LIBRARY, templateStrategy } from "./lib/templates.js";
+import { analyze, plan } from "./lib/rebalance.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -34,6 +35,7 @@ document.querySelectorAll(".tab").forEach((tab) =>
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${tab.dataset.view}`));
     if (tab.dataset.view === "monitor") renderMonitor();
+    if (tab.dataset.view === "rebalance") renderRebalance();
     if (tab.dataset.view === "build" && lastResult) renderResults(lastResult.result, lastResult.data);
   })
 );
@@ -597,6 +599,190 @@ $("#feed-toggle").addEventListener("click", () => {
 
 window.addEventListener("resize", () => lastResult && $("#view-build").classList.contains("active") && renderResults(lastResult.result, lastResult.data));
 
+// ---------- rebalance (advice only: never places orders) ----------
+const portfolio = store.get("portfolio", {
+  holdings: [
+    { symbol: "VTI", shares: 0, target: 60 },
+    { symbol: "VXUS", shares: 0, target: 25 },
+    { symbol: "BND", shares: 0, target: 15 },
+  ],
+  cash: 10000, band: 5, minTrade: 25, cashBuffer: 1, fractional: true,
+});
+const rbPrices = {}, rbErrors = {};
+let rbPlan = null, rbWasOut = false;
+
+const savePortfolio = () => store.set("portfolio", portfolio);
+
+async function refreshPortfolioPrices() {
+  const symbols = [...new Set(portfolio.holdings.map((h) => h.symbol).filter(Boolean))];
+  if (!symbols.length) return renderRebalance();
+  try {
+    const { quotes, errors } = await fetchJson(`/api/quotes?symbols=${symbols.map(encodeURIComponent).join(",")}`);
+    for (const s of symbols) {
+      if (quotes[s]) { rbPrices[s] = quotes[s].price; delete rbErrors[s]; }
+      else rbErrors[s] = errors[s] || "No quote";
+    }
+    $("#rb-updated").textContent = `Last update ${new Date().toLocaleTimeString()}.`;
+  } catch (err) {
+    $("#rb-updated").textContent = `Price update failed: ${err.message}.`;
+  }
+  renderRebalance();
+}
+
+function renderRebalance() {
+  const a = analyze(portfolio.holdings, rbPrices, Number(portfolio.cash) || 0);
+  rbPlan = plan(a, { band: portfolio.band, minTrade: portfolio.minTrade, fractional: portfolio.fractional, cashBuffer: portfolio.cashBuffer, force: $("#rb-force").checked });
+  const out = rbPlan.outOfBand.length;
+  const priced = portfolio.holdings.every((h) => !h.symbol || rbPrices[h.symbol] != null);
+
+  // Notify once each time the portfolio drifts out of its band.
+  if (priced && out && !rbWasOut) {
+    log(`⚖️ Rebalance suggested: ${rbPlan.outOfBand.map((r) => `${r.symbol} ${r.drift > 0 ? "+" : ""}${r.drift.toFixed(1)} pts`).join(", ")}.`);
+    notify(`Portfolio drifted: ${rbPlan.outOfBand.map((r) => r.symbol).join(", ")} outside the ${portfolio.band}-pt band`);
+  }
+  if (priced) rbWasOut = out > 0;
+
+  const pill = $("#rb-status");
+  pill.textContent = !priced ? "Loading prices…" : out ? `${out} holding${out > 1 ? "s" : ""} out of band` : "Within band";
+  pill.classList.toggle("on", priced && !out);
+
+  const maxDrift = a.rows.reduce((m, r) => Math.max(m, Math.abs(r.drift)), 0);
+  $("#rb-metrics").innerHTML = [
+    ["Portfolio value", money(a.total)],
+    ["Invested", money(a.invested)],
+    ["Cash", `${money(a.cash)} (${a.cashWeight.toFixed(1)}%)`],
+    ["Largest drift", `${maxDrift.toFixed(1)} pts`],
+    ["Band", `±${portfolio.band} pts`],
+  ].map(([l, v]) => `<div class="metric"><div class="label">${l}</div><div class="value">${v}</div></div>`).join("");
+
+  const warn = $("#rb-warn");
+  warn.hidden = Math.abs(a.targetSum - 100) < 0.01;
+  warn.textContent = `Targets add up to ${a.targetSum.toFixed(1)}%; they should total 100% (the cash buffer is applied on top).`;
+
+  // Only rebuild the inputs when the table isn't being edited, so typing isn't interrupted.
+  const tbl = $("#rb-holdings");
+  if (!tbl.contains(document.activeElement)) {
+    tbl.innerHTML = `<thead><tr><th>Symbol</th><th>Shares</th><th>Price</th><th>Value</th><th>Weight</th><th>Target %</th><th>Drift</th><th></th></tr></thead><tbody>${portfolio.holdings
+      .map((h, k) => {
+        const r = a.rows.find((x) => x.symbol === h.symbol);
+        const err = rbErrors[h.symbol];
+        const drift = r ? r.drift : null;
+        const cls = drift == null ? "" : Math.abs(drift) > portfolio.band ? "neg" : "pos";
+        return `<tr>
+          <td><input data-rb="${k}" data-field="symbol" value="${esc(h.symbol)}" maxlength="20" /></td>
+          <td><input data-rb="${k}" data-field="shares" type="number" min="0" step="any" value="${h.shares}" /></td>
+          <td>${r ? r.price.toFixed(2) : err ? `<span class="neg" title="${esc(err)}">${esc(err)}</span>` : "…"}</td>
+          <td>${r ? money(r.value) : "–"}</td>
+          <td>${r ? `${r.weight.toFixed(1)}%` : "–"}</td>
+          <td><input data-rb="${k}" data-field="target" type="number" min="0" max="100" step="0.5" value="${h.target}" /></td>
+          <td class="${cls}">${drift == null ? "–" : `${drift > 0 ? "+" : ""}${drift.toFixed(1)} pts`}</td>
+          <td><button class="link" data-rb-del="${k}" title="Remove">✕</button></td></tr>`;
+      })
+      .join("")}</tbody>`;
+  }
+
+  $("#rb-plan").innerHTML = !rbPlan.needed
+    ? `<tbody><tr><td class="empty">No trades needed. Every holding is within ±${portfolio.band} pts of its target.</td></tr></tbody>`
+    : rbPlan.trades.length
+      ? `<thead><tr><th>Action</th><th>Shares</th><th>Symbol</th><th>Approx. price</th><th>Approx. amount</th></tr></thead><tbody>${rbPlan.trades
+          .map((t) => `<tr><td class="${t.side === "BUY" ? "pos" : "neg"}"><strong>${t.side}</strong></td><td>${t.shares}</td><td>${esc(t.symbol)}</td><td>${t.price.toFixed(2)}</td><td>${money(t.amount)}</td></tr>`)
+          .join("")}<tr><td colspan="4">Cash after trades</td><td>${money(rbPlan.cashAfter)}</td></tr></tbody>`
+      : `<tbody><tr><td class="empty">Out of band, but every trade would be under the ${money(portfolio.minTrade)} minimum.</td></tr></tbody>`;
+}
+
+function syncRuleInputs() {
+  $("#rb-cash").value = portfolio.cash;
+  $("#rb-band").value = portfolio.band;
+  $("#rb-min").value = portfolio.minTrade;
+  $("#rb-buffer").value = portfolio.cashBuffer;
+  $("#rb-fractional").checked = portfolio.fractional;
+}
+
+for (const [id, key] of [["#rb-cash", "cash"], ["#rb-band", "band"], ["#rb-min", "minTrade"], ["#rb-buffer", "cashBuffer"]]) {
+  $(id).addEventListener("input", () => {
+    portfolio[key] = Math.max(0, Number($(id).value) || 0);
+    savePortfolio();
+    renderRebalance();
+  });
+}
+$("#rb-fractional").addEventListener("change", () => {
+  portfolio.fractional = $("#rb-fractional").checked;
+  savePortfolio();
+  renderRebalance();
+});
+$("#rb-force").addEventListener("change", renderRebalance);
+
+$("#rb-holdings").addEventListener("input", (e) => {
+  const k = e.target.dataset.rb;
+  if (k == null) return;
+  const h = portfolio.holdings[k], f = e.target.dataset.field;
+  h[f] = f === "symbol" ? e.target.value.trim().toUpperCase() : Math.max(0, Number(e.target.value) || 0);
+  savePortfolio();
+});
+// Recalculate (and fetch a price for a new symbol) when the user leaves a field.
+$("#rb-holdings").addEventListener("focusout", (e) => {
+  if (e.target.dataset.field === "symbol" && e.target.value && rbPrices[e.target.value.trim().toUpperCase()] == null) {
+    setTimeout(refreshPortfolioPrices, 0);
+  } else setTimeout(renderRebalance, 0);
+});
+$("#rb-holdings").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") e.target.blur();
+});
+
+$("#rb-add").addEventListener("click", () => {
+  portfolio.holdings.push({ symbol: "", shares: 0, target: 0 });
+  savePortfolio();
+  renderRebalance();
+  $(`#rb-holdings input[data-rb="${portfolio.holdings.length - 1}"][data-field="symbol"]`)?.focus();
+});
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("button[data-rb-del]");
+  if (!t) return;
+  portfolio.holdings.splice(Number(t.dataset.rbDel), 1);
+  savePortfolio();
+  renderRebalance();
+});
+
+const planText = () =>
+  rbPlan.trades.map((t) => `${t.side} ${t.shares} ${t.symbol} (about ${money(t.amount)} at ${t.price.toFixed(2)})`).join("\n");
+
+$("#rb-copy").addEventListener("click", async () => {
+  if (!rbPlan?.trades.length) return;
+  try {
+    await navigator.clipboard.writeText(planText());
+    flash($("#rb-copy"), "Copied ✓");
+  } catch {
+    window.prompt("Copy the trade list:", planText());
+  }
+});
+
+$("#rb-export").addEventListener("click", () => {
+  if (!rbPlan?.trades.length) return;
+  const rows = [["side", "symbol", "shares", "approx_price", "approx_amount"], ...rbPlan.trades.map((t) => [t.side, t.symbol, t.shares, t.price.toFixed(4), t.amount.toFixed(2)])];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([rows.map((r) => r.join(",")).join("\n")], { type: "text/csv" }));
+  a.download = `rebalance_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// After the user places the trades at their broker, roll the plan into the holdings.
+$("#rb-apply").addEventListener("click", () => {
+  if (!rbPlan?.trades.length) return;
+  if (!confirm("Update share counts and cash as if these trades filled at the shown prices? Edit them afterwards to match your actual fills.")) return;
+  for (const t of rbPlan.trades) {
+    const h = portfolio.holdings.find((x) => x.symbol === t.symbol);
+    h.shares = Math.max(0, Math.round((h.shares + (t.side === "BUY" ? t.shares : -t.shares)) * 1e4) / 1e4);
+  }
+  portfolio.cash = Math.round(rbPlan.cashAfter * 100) / 100;
+  log(`Recorded rebalance: ${rbPlan.trades.map((t) => `${t.side} ${t.shares} ${t.symbol}`).join(", ")}.`);
+  savePortfolio();
+  syncRuleInputs();
+  $("#rb-force").checked = false;
+  renderRebalance();
+});
+
 // ---------- init ----------
 (async function init() {
   try {
@@ -614,4 +800,7 @@ window.addEventListener("resize", () => lastResult && $("#view-build").classList
   renderLibrary();
   runAndShow();
   startFeed();
+  syncRuleInputs();
+  refreshPortfolioPrices();
+  setInterval(refreshPortfolioPrices, 15000);
 })();

@@ -15,6 +15,7 @@
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="build">Build &amp; Test</button>
+      <button class="tab" data-view="rebalance">Rebalance</button>
       <button class="tab" data-view="monitor">Monitor</button>
       <button class="tab" data-view="library">Library</button>
     </nav>
@@ -88,6 +89,46 @@
         <div class="panel">
           <div class="panel-head"><h3>Trades</h3><button class="btn small" id="export-trades">Export CSV</button></div>
           <div class="table-wrap"><table id="trades"></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REBALANCE -->
+    <section id="view-rebalance" class="view">
+      <div class="monitor-bar panel">
+        <div>
+          <strong>Portfolio rebalancer</strong>
+          <span class="note">Advice only. Strategy Lab never places orders; you review and place any trades yourself. Prices refresh every 15s. <span id="rb-updated"></span></span>
+        </div>
+        <span id="rb-status" class="pill">…</span>
+      </div>
+      <div id="rb-metrics" class="metrics"></div>
+      <div class="monitor-grid">
+        <div class="panel span-2">
+          <div class="panel-head"><h3>Holdings &amp; targets</h3><button class="btn small" id="rb-add">Add holding</button></div>
+          <div class="table-wrap"><table id="rb-holdings" class="editable"></table></div>
+          <p id="rb-warn" class="error" hidden></p>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Rules</h3></div>
+          <div class="controls rb-settings">
+            <label>Cash ($) <input id="rb-cash" type="number" min="0" step="0.01" /></label>
+            <label title="Rebalance when any holding is this many percentage points away from its target">Drift band (pts) <input id="rb-band" type="number" min="0.5" step="0.5" /></label>
+            <label>Min trade ($) <input id="rb-min" type="number" min="0" step="1" /></label>
+            <label>Cash buffer (%) <input id="rb-buffer" type="number" min="0" max="50" step="0.5" /></label>
+            <label class="check"><input id="rb-fractional" type="checkbox" /> Fractional shares</label>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Suggested trades</h3>
+            <div class="row"><label class="check"><input id="rb-force" type="checkbox" /> Show even when in band</label></div>
+          </div>
+          <div class="table-wrap"><table id="rb-plan"></table></div>
+          <div class="row" style="justify-content:flex-end;margin-top:12px">
+            <button class="btn small" id="rb-copy">Copy as text</button>
+            <button class="btn small" id="rb-export">Export CSV</button>
+            <button class="btn small primary" id="rb-apply" title="Update the share counts above after you've placed these trades yourself">I placed these trades</button>
+          </div>
         </div>
       </div>
     </section>
