@@ -84,7 +84,8 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url.pathname === "/api/status") return send(res, 200, { ai: aiEnabled, stockProvider });
     if (url.pathname === "/api/history") {
-      const years = Math.min(20, Math.max(1, Number(url.searchParams.get("years")) || 3));
+      const raw = url.searchParams.get("years");
+      const years = raw === "max" ? "max" : Math.min(50, Math.max(1, Number(raw) || 3));
       return send(res, 200, await getHistory(url.searchParams.get("symbol"), years));
     }
     if (url.pathname === "/api/quotes") {

@@ -40,13 +40,15 @@ async function getJson(url, headers = {}) {
   return res.json();
 }
 
+// `years` is a number of years or "max" for all available history.
+const startOf = (years) => (years === "max" ? Date.UTC(1900, 0, 1) : Date.now() - years * 365.25 * 864e5);
 const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
 const utcMidnight = (day) => Date.parse(`${day}T00:00:00Z`);
 const nyDay = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(date));
 
 // ---------- Yahoo Finance ----------
-async function yahooChart(symbol, range, interval) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=false`;
+async function yahooChart(symbol, span, interval) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${span}&interval=${interval}&includePrePost=false`;
   const json = await getJson(url);
   const result = json.chart?.result?.[0];
   if (!result) throw new HttpError(404, json.chart?.error?.description || `No data for ${symbol}`);
@@ -54,7 +56,9 @@ async function yahooChart(symbol, range, interval) {
 }
 
 async function yahooHistory(symbol, years) {
-  const r = await yahooChart(symbol, `${years}y`, "1d");
+  // An explicit period keeps daily bars; Yahoo's range=max silently downsamples to monthly.
+  const period1 = Math.floor(startOf(years) / 1000);
+  const r = await yahooChart(symbol, `period1=${period1}&period2=${Math.floor(Date.now() / 1000)}`, "1d");
   const q = r.indicators?.quote?.[0] || {};
   const offset = (r.meta.gmtoffset || 0) * 1000;
   const bars = [];
@@ -71,7 +75,7 @@ async function yahooHistory(symbol, years) {
 }
 
 async function yahooQuote(symbol) {
-  const { meta } = await yahooChart(symbol, "1d", "1d");
+  const { meta } = await yahooChart(symbol, "range=1d", "1d");
   const price = meta.regularMarketPrice;
   const prev = meta.chartPreviousClose ?? meta.previousClose;
   const time = (meta.regularMarketTime || Date.now() / 1000) * 1000;
@@ -84,7 +88,8 @@ async function yahooQuote(symbol) {
 
 // ---------- Alpaca ----------
 async function alpacaHistory(symbol, years) {
-  const start = new Date(Date.now() - years * 365.25 * 864e5).toISOString().slice(0, 10);
+  // Alpaca's stock history starts in 2016.
+  const start = new Date(Math.max(startOf(years), Date.UTC(2016, 0, 1))).toISOString().slice(0, 10);
   const bars = [];
   let token = "";
   do {
@@ -119,14 +124,17 @@ async function alpacaQuotes(symbols) {
 async function coinbaseHistory(symbol, years) {
   const bars = new Map();
   let end = Date.now();
-  const stop = end - years * 365.25 * 864e5;
-  while (end > stop) {
+  const stop = Math.max(startOf(years), Date.UTC(2014, 0, 1)); // Coinbase launched pairs from 2015
+  let emptyPages = 0;
+  while (end > stop && emptyPages < 2) {
     const start = Math.max(stop, end - 299 * 864e5);
     const url = `https://api.exchange.coinbase.com/products/${symbol}/candles?granularity=86400&start=${new Date(start).toISOString()}&end=${new Date(end).toISOString()}`;
     const rows = await getJson(url);
-    if (!Array.isArray(rows) || !rows.length) break;
-    for (const [t, low, high, open, close, volume] of rows) bars.set(t * 1000, { time: t * 1000, open, high, low, close, volume });
+    // Stop after two empty pages in a row: we're before the pair was listed.
+    emptyPages = Array.isArray(rows) && rows.length ? 0 : emptyPages + 1;
+    if (Array.isArray(rows)) for (const [t, low, high, open, close, volume] of rows) bars.set(t * 1000, { time: t * 1000, open, high, low, close, volume });
     end = start - 864e5;
+    await new Promise((r) => setTimeout(r, 120)); // stay under Coinbase's public rate limit
   }
   if (!bars.size) throw new HttpError(404, `No Coinbase data for ${symbol}`);
   return { bars: [...bars.values()].sort((a, b) => a.time - b.time), currency: symbol.split("-")[1], name: symbol, exchange: "Coinbase" };

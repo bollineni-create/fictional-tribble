@@ -53,6 +53,16 @@
                 <option value="sim">Simulated</option>
               </select>
             </label>
+            <label>History
+              <select id="history">
+                <option value="1">1 year</option>
+                <option value="3">3 years</option>
+                <option value="5">5 years</option>
+                <option value="10">10 years</option>
+                <option value="20">20 years</option>
+                <option value="max" selected>Max</option>
+              </select>
+            </label>
             <label>Symbol <input id="symbol" value="SPY" size="9" list="symbol-hints" /></label>
             <datalist id="symbol-hints"><option value="SPY"><option value="QQQ"><option value="AAPL"><option value="MSFT"><option value="NVDA"><option value="TSLA"><option value="^GSPC"><option value="BTC-USD"><option value="ETH-USD"><option value="SOL-USD"></datalist>
             <label>Capital <input id="capital" type="number" value="10000" min="100" step="100" /></label>

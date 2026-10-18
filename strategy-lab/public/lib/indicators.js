@@ -85,13 +85,18 @@ export function atr(high, low, close, n = 14) {
   return sma(tr, n);
 }
 
-export function highest(src, n) {
-  return src.map((_, i) => (i < n - 1 ? NaN : Math.max(...src.slice(i - n + 1, i + 1))));
+function windowExtreme(src, n, better) {
+  const out = new Array(src.length).fill(NaN);
+  for (let i = n - 1; i < src.length; i++) {
+    let v = src[i - n + 1];
+    for (let j = i - n + 2; j <= i; j++) if (better(src[j], v)) v = src[j];
+    out[i] = v;
+  }
+  return out;
 }
 
-export function lowest(src, n) {
-  return src.map((_, i) => (i < n - 1 ? NaN : Math.min(...src.slice(i - n + 1, i + 1))));
-}
+export const highest = (src, n) => windowExtreme(src, n, (a, b) => a > b);
+export const lowest = (src, n) => windowExtreme(src, n, (a, b) => a < b);
 
 export function roc(src, n) {
   return src.map((v, i) => (i < n ? NaN : (v / src[i - n] - 1) * 100));
