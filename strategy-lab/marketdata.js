@@ -14,6 +14,7 @@ const alpacaKeys = process.env.ALPACA_API_KEY_ID && process.env.ALPACA_API_SECRE
   ? { "APCA-API-KEY-ID": process.env.ALPACA_API_KEY_ID, "APCA-API-SECRET-KEY": process.env.ALPACA_API_SECRET_KEY }
   : null;
 const alpacaFeed = process.env.ALPACA_FEED || "iex";
+const alpacaData = (process.env.ALPACA_DATA_URL || "https://data.alpaca.markets").replace(/\/$/, "");
 
 const CRYPTO = /^[A-Z0-9]{2,10}-(USD|USDT|USDC|EUR|GBP|BTC|ETH)$/;
 export const isCrypto = (s) => CRYPTO.test(s);
@@ -93,7 +94,7 @@ async function alpacaHistory(symbol, years) {
   const bars = [];
   let token = "";
   do {
-    const url = `https://data.alpaca.markets/v2/stocks/bars?symbols=${encodeURIComponent(symbol)}&timeframe=1Day&start=${start}&adjustment=all&feed=${alpacaFeed}&limit=10000${token ? `&page_token=${token}` : ""}`;
+    const url = `${alpacaData}/v2/stocks/bars?symbols=${encodeURIComponent(symbol)}&timeframe=1Day&start=${start}&adjustment=all&feed=${alpacaFeed}&limit=10000${token ? `&page_token=${token}` : ""}`;
     const json = await getJson(url, alpacaKeys);
     for (const b of json.bars?.[symbol] || []) {
       bars.push({ time: utcMidnight(nyDay(b.t)), open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v });
@@ -105,7 +106,7 @@ async function alpacaHistory(symbol, years) {
 }
 
 async function alpacaQuotes(symbols) {
-  const json = await getJson(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${symbols.map(encodeURIComponent).join(",")}&feed=${alpacaFeed}`, alpacaKeys);
+  const json = await getJson(`${alpacaData}/v2/stocks/snapshots?symbols=${symbols.map(encodeURIComponent).join(",")}&feed=${alpacaFeed}`, alpacaKeys);
   const out = {};
   for (const s of symbols) {
     const snap = json[s];
@@ -175,12 +176,13 @@ export async function getHistory(rawSymbol, years = 3) {
   return data;
 }
 
-export async function getQuotes(rawSymbols) {
+// `fresh` skips the short quote cache (the autopilot always trades on fresh prices).
+export async function getQuotes(rawSymbols, { fresh = false } = {}) {
   const symbols = [...new Set(rawSymbols.map(cleanSymbol))].slice(0, 50);
   const out = {}, errors = {}, stale = [];
   for (const s of symbols) {
     const hit = quoteCache.get(s);
-    if (hit && Date.now() - hit.at < QUOTE_TTL) out[s] = hit.data;
+    if (!fresh && hit && Date.now() - hit.at < QUOTE_TTL) out[s] = hit.data;
     else stale.push(s);
   }
   const save = (s, q, source) => {

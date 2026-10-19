@@ -62,6 +62,55 @@ Requests use `claude-opus-5-5` with server-side refusal fallback enabled. If a r
 
 Saved strategies, the watchlist, alerts and paper positions are stored in your browser's local storage.
 
+## 5-month paper rebalancing test (Alpaca)
+
+The autopilot runs the Rebalance tab's logic automatically on an **Alpaca paper-trading** account: real market prices, simulated money. The trading client only connects to `paper-api.alpaca.markets` and refuses any other host, so it cannot place real-money orders.
+
+### Set up (once)
+
+1. Create a free account at [alpaca.markets](https://alpaca.markets) and open the **Paper Trading** dashboard. If you like, reset the paper balance to the amount you'd actually invest, so the numbers feel real.
+2. Generate **paper** API keys.
+3. Copy `.env.example` to `.env` in this folder and paste in the keys. `.env` is git-ignored.
+4. Run `npm start`, open the **Rebalance** tab, set your targets and rules, then click **Use targets & rules above** in the autopilot panel.
+5. Click **Turn on**. To start straight away instead of at tomorrow's check, click **Run check now** during market hours. The first check invests the paper cash at your targets and marks the start of the test.
+
+### How it runs
+
+- **Once per market day**, after the check time (10:30 ET by default), it compares the paper account with your targets. It trades only if a holding is outside the band, or if you hold something that isn't in your targets. Sells go first, then buys; ETFs that allow it are bought in fractional dollar amounts.
+- **Safety checks.** Before trading, it confirms the market is open and that there are no pending orders. It skips the day if its price quote differs from Alpaca's by more than 10%, and refuses any single order over 75% of equity. After three errors in a day, it stops until the next day.
+- **Logging.** Every check, order, fill and error goes to `autopilot-data/journal.jsonl` and the panel's decision log.
+
+It has to be running to do its job. Either:
+
+- leave `npm start` running (the server checks every 5 minutes), or
+- schedule `npm run autopilot -- once` every 15 minutes on weekdays. It does nothing unless a check is due, so running it often is harmless.
+  - **macOS / Linux** (`crontab -e`): `*/15 * * * 1-5 cd /path/to/strategy-lab && npm run autopilot -- once >> autopilot-data/cron.log 2>&1`
+  - **Windows**: in Task Scheduler, create a task that repeats every 15 minutes and runs `node autopilot-cli.js once` with "Start in" set to this folder.
+
+If the computer is asleep at check time, that day's check runs when it wakes, provided the market is still open. Fully missed days are counted in the report.
+
+### Commands
+
+```bash
+npm run autopilot -- status    # account, positions, recent decisions
+npm run autopilot -- report    # results vs. benchmarks, saved to autopilot-data/
+npm run autopilot -- stop      # emergency stop: no orders until "resume"
+npm run autopilot -- resume
+npm run autopilot -- disable   # turn the daily check off
+```
+
+### Judging the test at month 5
+
+The report compares three portfolios that start from the same money on the same day: the autopilot, the same targets never rebalanced, and SPY alone. Five months is too short to judge returns, and rebalancing is about controlling risk more than adding return. So judge mostly on whether the tool behaved:
+
+- Every order filled, and every error in the journal has an explanation.
+- It traded only when something was out of band, and roughly as often as you expected.
+- Slippage against the planned price stayed small (a few basis points for liquid ETFs).
+- Missed days were explained by the computer being off, not by silent failures.
+- You were comfortable not checking it.
+
+If all of that holds, the next step is a small real-money amount, but only once your employer's rules allow automated trading.
+
 ## Strategy code format
 
 A strategy is the body of a function that receives `data` and `ta` and returns entry and exit rules:

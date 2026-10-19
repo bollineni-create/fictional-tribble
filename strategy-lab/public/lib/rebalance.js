@@ -18,12 +18,13 @@ export function analyze(holdings, prices, cash) {
 }
 
 // Bands: a holding needs attention when its weight is more than `band` percentage
-// points away from target. Returns the suggested trades to bring every holding
-// back to target, keeping `cashBuffer` percent in cash. Sells run first so their
-// proceeds fund the buys.
+// points away from target, or when it has a target of 0 (it shouldn't be held).
+// Returns the suggested trades to bring every holding back to target, keeping
+// `cashBuffer` percent in cash. Sells run first so their proceeds fund the buys.
 export function plan(analysis, { band = 5, minTrade = 25, fractional = true, cashBuffer = 0, force = false } = {}) {
   const { rows, total } = analysis;
-  const outOfBand = rows.filter((r) => Math.abs(r.drift) > band);
+  // Holdings with no target (target 0) always count as out of band, so they get sold.
+  const outOfBand = rows.filter((r) => Math.abs(r.drift) > band || (r.target === 0 && r.value >= minTrade));
   if (!force && !outOfBand.length) return { needed: false, outOfBand, trades: [], cashAfter: analysis.cash };
 
   const investable = total * (1 - cashBuffer / 100);

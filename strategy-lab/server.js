@@ -1,3 +1,4 @@
+import "./env.js";
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -5,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
 import { templateStrategy } from "./public/lib/templates.js";
 import { getHistory, getQuotes, stockProvider } from "./marketdata.js";
+import { alpacaConfigured } from "./alpaca.js";
+import { runOnce, status as autopilotStatus, saveConfig, report, reportMarkdown } from "./autopilot.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(here, "public");
@@ -82,6 +85,21 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
+    // State-changing requests must come from this app's own page: same origin and a JSON body,
+    // so other websites open in the browser can't trigger them.
+    if (req.method === "POST") {
+      const origin = req.headers.origin;
+      if ((origin && origin !== `http://${req.headers.host}`) || !String(req.headers["content-type"]).startsWith("application/json")) {
+        return send(res, 403, { error: "Forbidden" });
+      }
+    }
+    if (url.pathname === "/api/autopilot/status") return send(res, 200, await autopilotStatus());
+    if (url.pathname === "/api/autopilot/config" && req.method === "POST") return send(res, 200, saveConfig(await readJson(req)));
+    if (url.pathname === "/api/autopilot/run" && req.method === "POST") return send(res, 200, await runOnce({ force: true, reason: "manual" }));
+    if (url.pathname === "/api/autopilot/report") {
+      const r = await report();
+      return send(res, 200, { ...r, markdown: reportMarkdown(r) });
+    }
     if (url.pathname === "/api/status") return send(res, 200, { ai: aiEnabled, stockProvider });
     if (url.pathname === "/api/history") {
       const raw = url.searchParams.get("years");
@@ -119,5 +137,11 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`Strategy Lab running at http://${HOST}:${PORT}`);
   console.log(`Market data: ${stockProvider} for stocks, Coinbase for crypto pairs (e.g. BTC-USD)`);
+  if (alpacaConfigured()) {
+    console.log("Alpaca paper autopilot: checks every 5 minutes whether today's rebalance check is due (only acts when enabled).");
+    const tick = () => runOnce().then((r) => r.skipped || console.log(`[autopilot] ${r.type}: ${r.message ?? ""}`), (e) => console.error("[autopilot]", e.message));
+    tick();
+    setInterval(tick, 5 * 60e3);
+  }
   console.log(aiEnabled ? "AI strategy builder: on (Claude)" : "AI strategy builder: off. Set ANTHROPIC_API_KEY to enable it; using the built-in builder.");
 });

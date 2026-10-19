@@ -35,7 +35,7 @@ document.querySelectorAll(".tab").forEach((tab) =>
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${tab.dataset.view}`));
     if (tab.dataset.view === "monitor") renderMonitor();
-    if (tab.dataset.view === "rebalance") renderRebalance();
+    if (tab.dataset.view === "rebalance") { renderRebalance(); loadAutopilot(); }
     if (tab.dataset.view === "build" && lastResult) renderResults(lastResult.result, lastResult.data);
   })
 );
@@ -782,6 +782,104 @@ $("#rb-apply").addEventListener("click", () => {
   $("#rb-force").checked = false;
   renderRebalance();
 });
+
+// ---------- Alpaca paper autopilot panel ----------
+async function postJson(url, body) {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  return json;
+}
+
+let apStatus = null;
+async function loadAutopilot() {
+  try {
+    apStatus = await fetchJson("/api/autopilot/status");
+  } catch (err) {
+    apStatus = { error: err.message };
+  }
+  renderAutopilot();
+}
+
+function renderAutopilot(extra = "") {
+  const s = apStatus, body = $("#ap-body"), pill = $("#ap-pill");
+  if (!s) return;
+  if (s.error) {
+    pill.textContent = "Unavailable";
+    body.innerHTML = `<p class="note">Couldn't reach the autopilot: ${esc(s.error)}. Is the server running?</p>`;
+    return;
+  }
+  if (!s.configured) {
+    pill.textContent = "Not connected";
+    pill.classList.remove("on");
+    body.innerHTML = `<p>Runs this rebalancer automatically on an <strong>Alpaca paper-trading</strong> account: real prices, simulated money. It can't place real-money orders.</p>
+      <ol class="note"><li>Create a free account at alpaca.markets and open the Paper Trading dashboard.</li>
+      <li>Generate paper API keys.</li>
+      <li>Copy <code>strategy-lab/.env.example</code> to <code>.env</code> and paste the keys in.</li>
+      <li>Restart with <code>npm start</code>, then come back here.</li></ol>`;
+    return;
+  }
+  const c = s.config, on = c.enabled && !s.stopped;
+  pill.textContent = s.stopped ? "Emergency stop on" : on ? "On" : "Off";
+  pill.classList.toggle("on", on);
+  const targets = c.targets.map((t) => `${esc(t.symbol)} ${t.target}%`).join(" · ");
+  const acct = s.account ? `${money(s.account.equity)} equity, ${money(s.account.cash)} cash` : `<span class="neg">${esc(s.accountError || "account unavailable")}</span>`;
+  const entries = s.journal.slice(0, 12).map((e) => {
+    const what = e.type === "order" ? `${e.side} ${e.symbol} ${e.notional != null ? money(Number(e.notional)) : `${e.qty} sh`} → ${e.status}${e.fillPrice ? ` @ ${e.fillPrice.toFixed(2)}` : ""}`
+      : e.type === "check" ? `Check: equity ${money(e.equity)}${e.outOfBand.length ? `, out of band: ${e.outOfBand.join(", ")}` : ", all within band"}`
+      : `${e.type === "error" ? "⚠️ " : ""}${esc(e.message || e.type)}`;
+    return `<li><span><time>${new Date(e.ts).toLocaleString()}</time>${what}</span></li>`;
+  }).join("");
+  body.innerHTML = `
+    <div class="ap-grid">
+      <div><div class="label note">Paper account</div>${acct}</div>
+      <div><div class="label note">Targets</div>${targets}</div>
+      <div><div class="label note">Rules</div>±${c.band} pts band · min ${money(c.minTrade)} · ${c.cashBuffer}% cash · daily check after ${esc(c.checkTimeET)} ET</div>
+      <div><div class="label note">Test started</div>${c.startedAt ? `${esc(c.startedAt)} with ${money(c.startEquity)}` : "Not yet. Starts at the first check."}</div>
+    </div>
+    ${s.configErrors.length ? `<p class="error">${esc(s.configErrors.join("; "))}</p>` : ""}
+    <div class="row wrap" style="margin-top:12px">
+      <button class="btn small" id="ap-sync" title="Copy the targets and rules from the table above">Use targets &amp; rules above</button>
+      <button class="btn small ${on ? "" : "primary"}" id="ap-toggle">${c.enabled ? "Turn off" : "Turn on"}</button>
+      <button class="btn small" id="ap-run">Run check now</button>
+      <button class="btn small" id="ap-report">Test report</button>
+    </div>
+    ${extra}
+    <h3 style="margin-top:16px">Decision log</h3>
+    <ul class="list activity">${entries || `<li class="empty">Nothing yet.</li>`}</ul>`;
+
+  $("#ap-sync").onclick = async () => {
+    const targets = portfolio.holdings.filter((h) => h.symbol && h.target > 0).map((h) => ({ symbol: h.symbol, target: h.target }));
+    try {
+      await postJson("/api/autopilot/config", { targets, band: portfolio.band, minTrade: Math.max(1, portfolio.minTrade), cashBuffer: portfolio.cashBuffer });
+      await loadAutopilot();
+    } catch (err) { renderAutopilot(`<p class="error">${esc(err.message)}</p>`); }
+  };
+  $("#ap-toggle").onclick = async () => {
+    try {
+      await postJson("/api/autopilot/config", { enabled: !c.enabled });
+      log(`Paper autopilot turned ${c.enabled ? "off" : "on"}.`);
+      await loadAutopilot();
+    } catch (err) { renderAutopilot(`<p class="error">${esc(err.message)}</p>`); }
+  };
+  $("#ap-run").onclick = async () => {
+    if (!confirm("Run a rebalance check on the paper account now? If anything is out of band it will place paper orders.")) return;
+    $("#ap-run").disabled = true;
+    try {
+      const r = await postJson("/api/autopilot/run");
+      await loadAutopilot();
+      renderAutopilot(`<p class="note">${esc(r.message || r.skipped || "Done")}</p>`);
+    } catch (err) { renderAutopilot(`<p class="error">${esc(err.message)}</p>`); }
+  };
+  $("#ap-report").onclick = async () => {
+    try {
+      const r = await fetchJson("/api/autopilot/report");
+      renderAutopilot(`<pre class="report">${esc(r.markdown)}</pre>`);
+    } catch (err) { renderAutopilot(`<p class="note">${esc(err.message)}</p>`); }
+  };
+}
+
+setInterval(() => $("#view-rebalance").classList.contains("active") && loadAutopilot(), 60000);
 
 // ---------- init ----------
 (async function init() {
