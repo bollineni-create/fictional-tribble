@@ -5,6 +5,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { runOnce, status, report, reportMarkdown, loadConfig, saveConfig, dataDir, stopPath } from "./autopilot.js";
 
+const addMonths = (day, n) => {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+async function writeReport(name) {
+  const md = reportMarkdown(await report());
+  const file = path.join(dataDir, name);
+  fs.writeFileSync(file, md);
+  return { file, md };
+}
+
 const [cmd = "help"] = process.argv.slice(2);
 const print = (x) => console.log(typeof x === "string" ? x : JSON.stringify(x, null, 2));
 
@@ -21,6 +34,44 @@ const commands = {
       if (!r.skipped || !/before|already|disabled|closed/.test(r.skipped)) print(r);
       await new Promise((res) => setTimeout(res, 5 * 60e3));
     }
+  },
+  // For unattended scheduled runs: runs the daily check if due, writes a monthly
+  // report and the final report when the test period ends, and prints one JSON
+  // line saying whether the run is worth notifying the owner about.
+  async "cloud-run"() {
+    const before = loadConfig();
+    const r = await runOnce();
+    const cfg = loadConfig();
+    const today = new Date().toISOString().slice(0, 10);
+    const out = { notify: false, final: false, lines: [] };
+    if (r.skipped) out.lines.push(`No action: ${r.skipped}.`);
+    else {
+      out.lines.push(`${r.type}: ${r.message}`);
+      out.notify = r.type === "error" || r.traded === true;
+    }
+    if (cfg.startedAt) {
+      const end = addMonths(cfg.startedAt, cfg.testMonths ?? 5);
+      if (!before.startedAt) {
+        out.notify = true;
+        out.lines.push(`Test started ${cfg.startedAt} with $${cfg.startEquity}. It runs until ${end}.`);
+      }
+      try {
+        if (today >= end && !cfg.completedAt) {
+          const { file } = await writeReport(`final-report-${today}.md`);
+          saveConfig({ enabled: false, completedAt: today });
+          Object.assign(out, { notify: true, final: true });
+          out.lines.push(`Test period over; autopilot turned off. Final report: ${file}`);
+        } else if (!cfg.completedAt && today.slice(0, 7) !== (cfg.lastReportMonth ?? cfg.startedAt.slice(0, 7))) {
+          const { file } = await writeReport(`report-${today.slice(0, 7)}.md`);
+          saveConfig({ lastReportMonth: today.slice(0, 7) });
+          out.notify = true;
+          out.lines.push(`Monthly report written: ${file}`);
+        }
+      } catch (err) {
+        out.lines.push(`Report not written: ${err.message}`);
+      }
+    }
+    console.log(JSON.stringify({ notify: out.notify, final: out.final, summary: out.lines.join(" ") }));
   },
   async status() {
     const s = await status();
@@ -47,7 +98,7 @@ const commands = {
   },
   async config() { print(loadConfig()); },
   async help() {
-    console.log(`Commands: once | run-now | loop | status | report | enable | disable | stop | resume | config`);
+    console.log(`Commands: once | run-now | loop | cloud-run | status | report | enable | disable | stop | resume | config`);
   },
 };
 
