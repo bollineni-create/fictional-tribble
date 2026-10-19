@@ -43,7 +43,7 @@ const commands = {
     const r = await runOnce();
     const cfg = loadConfig();
     const today = new Date().toISOString().slice(0, 10);
-    const out = { notify: false, final: false, lines: [] };
+    const out = { notify: false, final: false, review: false, lines: [] };
     if (r.skipped) out.lines.push(`No action: ${r.skipped}.`);
     else {
       out.lines.push(`${r.type}: ${r.message}`);
@@ -56,7 +56,14 @@ const commands = {
         out.lines.push(`Test started ${cfg.startedAt} with $${cfg.startEquity}. It runs until ${end}.`);
       }
       try {
-        if (today >= end && !cfg.completedAt) {
+        const reviewAt = cfg.reviewAfterMonths ? addMonths(cfg.startedAt, cfg.reviewAfterMonths) : null;
+        if (reviewAt && today >= reviewAt && today < end && !cfg.reviewedAt) {
+          // Checkpoint review: report and evaluate, but keep the test running.
+          const { file } = await writeReport(`review-report-${today}.md`);
+          saveConfig({ reviewedAt: today });
+          Object.assign(out, { notify: true, review: true });
+          out.lines.push(`${cfg.reviewAfterMonths}-month review checkpoint reached; the test keeps running until ${end}. Review report: ${file}`);
+        } else if (today >= end && !cfg.completedAt) {
           const { file } = await writeReport(`final-report-${today}.md`);
           saveConfig({ enabled: false, completedAt: today });
           Object.assign(out, { notify: true, final: true });
@@ -71,7 +78,7 @@ const commands = {
         out.lines.push(`Report not written: ${err.message}`);
       }
     }
-    console.log(JSON.stringify({ notify: out.notify, final: out.final, summary: out.lines.join(" ") }));
+    console.log(JSON.stringify({ notify: out.notify, final: out.final, review: out.review, summary: out.lines.join(" ") }));
   },
   async status() {
     const s = await status();

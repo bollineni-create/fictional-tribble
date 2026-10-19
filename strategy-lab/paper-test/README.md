@@ -1,4 +1,4 @@
-# 5-month paper rebalancing test
+# Paper rebalancing test (5 years, 5-month review)
 
 This folder is the live record of the Alpaca **paper-trading** test. It runs from a
 scheduled Claude Code cloud session every weekday at 10:44 ET:
@@ -7,9 +7,10 @@ scheduled Claude Code cloud session every weekday at 10:44 ET:
 AUTOPILOT_DIR=paper-test npm run autopilot -- cloud-run
 ```
 
-- `config.json`: targets and rules. The test starts at the first successful check (`startedAt`) and ends after `testMonths`.
+- `config.json`: targets and rules. The test starts at the first successful check (`startedAt`), has a review checkpoint after `reviewAfterMonths` (5) while it keeps running, and ends after `testMonths` (60, i.e. 5 years).
 - `journal.jsonl`: every check, order, fill and error, committed after each run.
 - `report-YYYY-MM.md`: monthly progress reports.
+- `review-report-*.md`: the 5-month checkpoint review.
 - `final-report-*.md`: written when the test period ends; the autopilot then turns itself off.
 
 To run the same thing locally against this folder, set `AUTOPILOT_DIR=paper-test`.

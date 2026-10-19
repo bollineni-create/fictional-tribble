@@ -288,7 +288,7 @@ function seriesStats(values) {
 export async function report() {
   const cfg = loadConfig();
   if (!cfg.startedAt) throw Object.assign(new Error("The test hasn't started yet: no rebalance check has run."), { status: 400 });
-  const hist = await alpaca.portfolioHistory("1A");
+  const hist = await alpaca.portfolioHistory("5A");
   const days = [], equity = [];
   hist.timestamp.forEach((t, k) => {
     const d = new Date(t * 1000).toISOString().slice(0, 10);
@@ -298,7 +298,7 @@ export async function report() {
 
   // Benchmarks start from the same equity on the same day.
   const closesOn = async (symbol) => {
-    const h = await getHistory(symbol, 2);
+    const h = await getHistory(symbol, 6);
     const byDay = new Map(h.bars.map((b) => [new Date(b.time).toISOString().slice(0, 10), b.close]));
     let last = null;
     return days.map((d) => (last = byDay.get(d) ?? last));
