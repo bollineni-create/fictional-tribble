@@ -1,0 +1,27 @@
+{
+  "enabled": true,
+  "targets": [
+    {
+      "symbol": "VTI",
+      "target": 60
+    },
+    {
+      "symbol": "VXUS",
+      "target": 25
+    },
+    {
+      "symbol": "BND",
+      "target": 15
+    }
+  ],
+  "band": 5,
+  "minTrade": 25,
+  "cashBuffer": 1,
+  "checkTimeET": "10:30",
+  "maxOrderPct": 75,
+  "benchmark": "SPY",
+  "testMonths": 60,
+  "startedAt": "2026-10-19",
+  "startEquity": 100000,
+  "reviewAfterMonths": 5
+}
