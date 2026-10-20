@@ -21,7 +21,7 @@
   "maxOrderPct": 75,
   "benchmark": "SPY",
   "testMonths": 60,
-  "startedAt": null,
-  "startEquity": null,
+  "startedAt": "2026-10-19",
+  "startEquity": 100000,
   "reviewAfterMonths": 5
 }
