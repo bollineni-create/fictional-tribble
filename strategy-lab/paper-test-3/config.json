@@ -1,6 +1,4 @@
 {
-  "name": "Single stocks + gold, 3-point band",
-  "alpacaKeyPrefix": "ALPACA_3",
   "enabled": true,
   "targets": [
     {
@@ -32,15 +30,18 @@
       "target": 20
     }
   ],
-  "rebalance": "band",
   "band": 3,
+  "rebalance": "band",
   "minTrade": 25,
   "cashBuffer": 1,
   "checkTimeET": "10:30",
   "maxOrderPct": 75,
   "benchmark": "SPY",
+  "startedAt": "2026-10-21",
+  "startEquity": 100000,
+  "name": "Single stocks + gold, 3-point band",
+  "alpacaKeyPrefix": "ALPACA_3",
   "testMonths": 60,
   "reviewAfterMonths": 5,
-  "startedAt": null,
-  "startEquity": null
+  "accountId": "48651127-338e-47ec-9e90-f6f286270bcb"
 }
