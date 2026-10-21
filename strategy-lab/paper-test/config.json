@@ -1,4 +1,5 @@
 {
+  "name": "Core ETFs 60/25/15, 2-point band",
   "enabled": true,
   "targets": [
     {
@@ -23,5 +24,6 @@
   "testMonths": 60,
   "startedAt": "2026-10-19",
   "startEquity": 100000,
-  "reviewAfterMonths": 5
+  "reviewAfterMonths": 5,
+  "rebalance": "band"
 }

@@ -1,0 +1,46 @@
+{
+  "name": "Single stocks + gold, 3-point band",
+  "alpacaKeyPrefix": "ALPACA_3",
+  "enabled": true,
+  "targets": [
+    {
+      "symbol": "AAPL",
+      "target": 15
+    },
+    {
+      "symbol": "MSFT",
+      "target": 15
+    },
+    {
+      "symbol": "NVDA",
+      "target": 15
+    },
+    {
+      "symbol": "AMZN",
+      "target": 15
+    },
+    {
+      "symbol": "TSLA",
+      "target": 10
+    },
+    {
+      "symbol": "JPM",
+      "target": 10
+    },
+    {
+      "symbol": "GLD",
+      "target": 20
+    }
+  ],
+  "rebalance": "band",
+  "band": 3,
+  "minTrade": 25,
+  "cashBuffer": 1,
+  "checkTimeET": "10:30",
+  "maxOrderPct": 75,
+  "benchmark": "SPY",
+  "testMonths": 60,
+  "reviewAfterMonths": 5,
+  "startedAt": null,
+  "startEquity": null
+}

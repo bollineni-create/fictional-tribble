@@ -1,0 +1,38 @@
+{
+  "name": "Growth tilt, monthly rebalance",
+  "alpacaKeyPrefix": "ALPACA_2",
+  "enabled": true,
+  "targets": [
+    {
+      "symbol": "QQQ",
+      "target": 40
+    },
+    {
+      "symbol": "IWM",
+      "target": 20
+    },
+    {
+      "symbol": "SMH",
+      "target": 15
+    },
+    {
+      "symbol": "TLT",
+      "target": 15
+    },
+    {
+      "symbol": "GLD",
+      "target": 10
+    }
+  ],
+  "rebalance": "monthly",
+  "band": 2,
+  "minTrade": 25,
+  "cashBuffer": 1,
+  "checkTimeET": "10:30",
+  "maxOrderPct": 75,
+  "benchmark": "SPY",
+  "testMonths": 60,
+  "reviewAfterMonths": 5,
+  "startedAt": null,
+  "startEquity": null
+}
