@@ -14,7 +14,7 @@
       "target": 15
     }
   ],
-  "band": 5,
+  "band": 2,
   "minTrade": 25,
   "cashBuffer": 1,
   "checkTimeET": "10:30",
