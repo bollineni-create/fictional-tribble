@@ -8,6 +8,7 @@ import { templateStrategy } from "./public/lib/templates.js";
 import { getHistory, getQuotes, stockProvider } from "./marketdata.js";
 import { alpacaConfigured } from "./alpaca.js";
 import { runOnce, status as autopilotStatus, saveConfig, report, reportMarkdown } from "./autopilot.js";
+import { listProjects, readReport } from "./projects.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(here, "public");
@@ -100,6 +101,10 @@ const server = http.createServer(async (req, res) => {
       const r = await report();
       return send(res, 200, { ...r, markdown: reportMarkdown(r) });
     }
+    if (url.pathname === "/api/projects") return send(res, 200, { projects: listProjects() });
+    if (url.pathname === "/api/projects/report") {
+      return send(res, 200, { markdown: readReport(url.searchParams.get("id"), url.searchParams.get("file")) });
+    }
     if (url.pathname === "/api/status") return send(res, 200, { ai: aiEnabled, stockProvider });
     if (url.pathname === "/api/history") {
       const raw = url.searchParams.get("years");
@@ -132,6 +137,12 @@ const server = http.createServer(async (req, res) => {
     if (e.code === "ENOENT") return send(res, 404, "Not found", "text/plain");
     send(res, e.status || 500, { error: e.message });
   }
+});
+
+// The desktop app imports this module and waits on `listening` before opening its window.
+export const listening = new Promise((resolve, reject) => {
+  server.once("listening", resolve);
+  server.once("error", reject);
 });
 
 server.listen(PORT, HOST, () => {

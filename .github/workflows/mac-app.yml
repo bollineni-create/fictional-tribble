@@ -1,0 +1,39 @@
+name: Mac app
+
+# Builds Strategy Lab.app (a .dmg and a .zip) on a macOS runner. Download it from
+# the run's "Artifacts" section.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["strategy-lab/**", ".github/workflows/mac-app.yml"]
+  pull_request:
+    paths: ["strategy-lab/**", ".github/workflows/mac-app.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install server dependencies
+        working-directory: strategy-lab
+        run: npm ci --omit=dev --no-audit --no-fund
+      - name: Install Electron
+        working-directory: strategy-lab/desktop
+        run: npm ci --no-audit --no-fund
+      - name: Build
+        working-directory: strategy-lab/desktop
+        run: npx electron-builder --mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Strategy-Lab-mac
+          path: |
+            strategy-lab/desktop/dist/*.dmg
+            strategy-lab/desktop/dist/*.zip
+          if-no-files-found: error
