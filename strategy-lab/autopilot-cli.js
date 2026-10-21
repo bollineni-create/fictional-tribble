@@ -114,7 +114,8 @@ const commands = {
       }
     }
     for (const { d, id } of ready) {
-      const clash = ready.filter((r) => r.id === id).map((r) => r.d);
+      // Same account as another reachable folder, or as one another folder is pinned to.
+      const clash = [...new Set([...ready.filter((r) => r.id === id).map((r) => r.d), ...dirs.filter((x) => readCfg(x).accountId === id), d])];
       if (clash.length > 1) {
         out.notify = true;
         out.lines.push(`[${d}] skipped: ${clash.join(" and ")} use the same paper account. Each test needs keys for its own paper account.`);

@@ -106,6 +106,17 @@ function nyNow() {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
+// Account ids pinned by the other paper-test* folders next to this one.
+function siblingPins() {
+  const here = path.resolve(dataDir), parent = path.dirname(here);
+  return fs.readdirSync(parent)
+    .filter((d) => /^paper-test/.test(d) && path.join(parent, d) !== here)
+    .map((d) => {
+      try { return { dir: d, id: JSON.parse(fs.readFileSync(path.join(parent, d, "config.json"), "utf8")).accountId }; } catch { return { dir: d }; }
+    })
+    .filter((x) => x.id);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function acquireLock() {
@@ -168,7 +179,12 @@ export async function runOnce({ force = false, reason = "schedule" } = {}) {
     if (cfg.accountId && cfg.accountId !== account.id) {
       return journal({ type: "error", date, reason, message: "These keys belong to a different paper account than the one this test started on; nothing traded" });
     }
-    if (!cfg.accountId) saveConfig({ accountId: account.id });
+    if (!cfg.accountId) {
+      // Never start a new test on an account another test folder already uses.
+      const owner = siblingPins().find((x) => x.id === account.id);
+      if (owner) return journal({ type: "error", date, reason, message: `These keys belong to the paper account ${owner.dir} already uses; nothing traded` });
+      saveConfig({ accountId: account.id });
+    }
     const open = await alpaca.openOrders();
     if (open.length) return journal({ type: "skip", date, reason, message: `${open.length} open order(s) still pending; not trading on top of them` });
 

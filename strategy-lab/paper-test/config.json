@@ -25,5 +25,6 @@
   "startedAt": "2026-10-19",
   "startEquity": 100000,
   "reviewAfterMonths": 5,
-  "rebalance": "band"
+  "rebalance": "band",
+  "accountId": "6011961c-31ae-4707-af15-074447e3624d"
 }
