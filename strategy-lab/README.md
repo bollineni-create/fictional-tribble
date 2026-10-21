@@ -52,8 +52,35 @@ ANTHROPIC_API_KEY=sk-ant-... npm start
 
 Requests use `claude-opus-5-5` with server-side refusal fallback enabled. If a request fails, the app falls back to the built-in builder.
 
+## Mac app
+
+Strategy Lab also runs as a Mac app, with everything in one window: an **Overview** of your accounts, ongoing projects, backtest results and upcoming milestones, plus the Build & Test, Rebalance, Monitor and Library tabs. It runs the same local server inside the app, so nothing else needs to be running.
+
+### Get it
+
+- **Download:** open the repo's **Actions** tab, pick the latest **Mac app** run, and download `Strategy-Lab-mac` from its Artifacts. Unzip it, open the `.dmg` and drag Strategy Lab to Applications.
+  The app isn't signed with an Apple Developer ID, so the first time macOS will refuse to open it. Go to **System Settings › Privacy & Security** and click **Open Anyway** (or run `xattr -cr "/Applications/Strategy Lab.app"` in Terminal).
+- **Build it yourself** (on your Mac, Node.js 20.12+):
+
+  ```bash
+  cd strategy-lab/desktop
+  npm install
+  npm run build:mac     # creates dist/Strategy Lab-1.0.0-universal.dmg
+  ```
+
+- **Run from source** without building: `cd strategy-lab/desktop && npm install && npm start`.
+
+### Using it
+
+- **Keys:** choose **Strategy Lab › API Keys…**, paste your Alpaca paper keys (and optionally an Anthropic key), save, then **Strategy Lab › Restart**. The installed app keeps its keys and autopilot data in `~/Library/Application Support/Strategy Lab/`. Run from source, it uses `strategy-lab/.env` and `strategy-lab/autopilot-data` like `npm start`.
+- **Projects:** the Overview shows every autopilot folder it knows about, with a timeline from start to end, review checkpoints, rebalances, orders, errors and reports. To follow the 5-year paper test, choose **File › Add Project Folder…** and pick `strategy-lab/paper-test` in your clone of this repo; `git pull` brings in the latest journal and reports. Run from source, `paper-test` shows up automatically.
+- **Backtests:** every backtest you run is saved to the Overview's history with its return, buy & hold, CAGR, drawdown and Sharpe. Click **Open** to load it back into Build & Test.
+- **Background:** closing the window keeps the app running (Cmd+Q quits), so the paper autopilot keeps making its daily check while the app is open. ⌘1–⌘5 switch tabs.
+- The app serves its page at `http://127.0.0.1:5183` (set `STRATEGY_LAB_PORT` to change it). Saved strategies and backtests belong to that address, so ones saved in a browser at `npm start`'s port 5173 don't carry over.
+
 ## Features
 
+- **Overview**: accounts (Alpaca paper, your tracked portfolio, each paper strategy) with value and P&L, ongoing autopilot projects with timelines and reports, every backtest you've run with its results, and what's coming up next.
 - **Build & Test**: chat-style strategy builder, editable code, and a backtest on daily bars. The backtest reports total return vs. buy & hold, CAGR, max drawdown, Sharpe, win rate, profit factor and time in market, with an equity curve, a price chart with trade markers, and a trade list you can export as CSV.
 - **Data**: live market history by default. You can also import a CSV with `Date` and `Close` columns (`Open`, `High`, `Low` and `Volume` are optional), or switch to a simulated series for offline use.
 - **Rebalance**: enter your holdings, cash and target percentages. Prices refresh every 15 seconds. When any holding drifts more than your band (5 percentage points by default) from its target, you get a notification and a suggested list of trades that brings every holding back to target. Sells come first so they fund the buys, and you can set a cash buffer, a minimum trade size, and whole or fractional shares. Copy the list or export it as CSV, place the trades at your broker yourself, then click **I placed these trades** to update your holdings. The rebalancer only gives advice and never places orders.

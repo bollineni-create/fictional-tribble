@@ -164,13 +164,40 @@ ol.note { padding-left: 20px; }
 code { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
 pre.report { white-space: pre-wrap; background: var(--surface-2); padding: 12px; border-radius: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-x: auto; }
 
+/* Overview */
+.ov-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+.ov-head h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
+.ov-head .note { margin: 2px 0 0; }
+.ov-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-top: 16px; }
+.ov-grid td:first-child { white-space: normal; min-width: 180px; }
+.ov-grid td.status { white-space: normal; max-width: 220px; overflow-wrap: anywhere; }
+.ov-section { margin: 24px 0 12px; }
+.when { display: flex; flex-direction: column; align-items: flex-end; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.projects { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
+.project h4 { margin: 0; font-size: 15px; }
+.project .activity { max-height: none; }
+.progress { position: relative; height: 8px; border-radius: 999px; background: var(--surface-2); margin-top: 4px; }
+.progress .fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--accent); min-width: 8px; }
+.progress .mark { position: absolute; top: -3px; width: 4px; height: 14px; margin-left: -2px; border-radius: 2px; background: var(--muted); }
+.progress .mark.done { background: var(--accent); }
+.progress-labels { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.project-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0 6px; font-variant-numeric: tabular-nums; }
+.project-stats .note { margin: 0; }
+
+/* Mac app: the page sits under a hidden-inset title bar, so leave room for the
+   window buttons and let the top bar drag the window. */
+.desktop .topbar { padding-left: 88px; -webkit-app-region: drag; user-select: none; }
+.desktop .topbar button, .desktop .topbar .pill { -webkit-app-region: no-drag; }
+
 .footer { text-align: center; font-size: 12px; color: var(--muted); padding: 24px 20px 32px; }
 
 @media (max-width: 860px) {
   .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 16px; }
   .tabs { order: 3; flex-basis: 100%; overflow-x: auto; }
   main { padding: 16px; }
-  .build-grid, .monitor-grid { grid-template-columns: 1fr; }
+  .build-grid, .monitor-grid, .ov-grid { grid-template-columns: 1fr; }
+  .projects { grid-template-columns: 1fr; }
+  .project-stats { grid-template-columns: repeat(2, 1fr); }
   .span-2 { grid-column: auto; }
   .chat { min-height: 0; }
   .controls #run { margin-left: 0; }

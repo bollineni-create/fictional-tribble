@@ -14,7 +14,8 @@
       <span>Strategy Lab</span>
     </div>
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-view="build">Build &amp; Test</button>
+      <button class="tab active" data-view="overview">Overview</button>
+      <button class="tab" data-view="build">Build &amp; Test</button>
       <button class="tab" data-view="rebalance">Rebalance</button>
       <button class="tab" data-view="monitor">Monitor</button>
       <button class="tab" data-view="library">Library</button>
@@ -23,8 +24,40 @@
   </header>
 
   <main>
+    <!-- OVERVIEW -->
+    <section id="view-overview" class="view active">
+      <div class="ov-head">
+        <div>
+          <h1 id="ov-title">Overview</h1>
+          <p class="note" id="ov-sub">Accounts, ongoing projects, backtests and what's coming up.</p>
+        </div>
+        <button class="btn small" id="ov-refresh">Refresh</button>
+      </div>
+      <div id="ov-metrics" class="metrics"></div>
+      <div class="ov-grid">
+        <div class="panel">
+          <div class="panel-head"><h3>Accounts</h3></div>
+          <div class="table-wrap"><table id="ov-accounts"></table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Coming up</h3></div>
+          <ul id="ov-upcoming" class="list"></ul>
+        </div>
+      </div>
+      <h2 class="ov-section">Ongoing projects</h2>
+      <div id="ov-projects" class="projects"></div>
+      <div class="panel" style="margin-top:16px">
+        <div class="panel-head"><h3>Backtests &amp; results</h3><button class="btn small" id="ov-clear-bt">Clear history</button></div>
+        <div class="table-wrap"><table id="ov-backtests"></table></div>
+      </div>
+      <div class="panel" id="ov-report-panel" style="margin-top:16px" hidden>
+        <div class="panel-head"><h3 id="ov-report-title">Report</h3><button class="link" id="ov-report-close" title="Close">✕</button></div>
+        <pre class="report" id="ov-report"></pre>
+      </div>
+    </section>
+
     <!-- BUILD -->
-    <section id="view-build" class="view active">
+    <section id="view-build" class="view">
       <div class="build-grid">
         <div class="panel chat">
           <h2>Describe a strategy</h2>
