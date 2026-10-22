@@ -126,6 +126,16 @@ npm run autopilot -- resume
 npm run autopilot -- disable   # turn the daily check off
 ```
 
+### Several strategies at once
+
+To compare strategies, give each one its own paper account (create more from the Alpaca paper dashboard, then generate keys for each) and its own folder:
+
+1. Copy a `paper-test` folder to `paper-test-<name>`, delete its `journal.jsonl` and reports, and edit `config.json`: new targets, `"startedAt": null`, `"startEquity": null`, no `accountId`, and `"alpacaKeyPrefix": "ALPACA_<name>"`.
+2. Add `ALPACA_<name>_API_KEY_ID` and `ALPACA_<name>_API_SECRET_KEY` for that account to `.env` or the environment.
+3. `npm run autopilot -- cloud-run-all` runs every folder, each with its own keys.
+
+`"rebalance": "monthly"` rebalances to target at the first check of each month instead of using the band. Each folder is pinned to the account it started on, and a folder without its own keys is skipped rather than falling back to another account.
+
 ### Judging the test at month 5
 
 The report compares three portfolios that start from the same money on the same day: the autopilot, the same targets never rebalanced, and SPY alone. Five months is too short to judge returns, and rebalancing is about controlling risk more than adding return. So judge mostly on whether the tool behaved:

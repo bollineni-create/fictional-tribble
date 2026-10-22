@@ -28,6 +28,9 @@ const DEFAULT_CONFIG = {
     { symbol: "BND", target: 15 },
   ],
   band: 5,
+  // "band": trade whenever a holding drifts past the band.
+  // "monthly": rebalance to target at the first check of each month, and only then.
+  rebalance: "band",
   minTrade: 25,
   cashBuffer: 1,
   checkTimeET: "10:30",
@@ -59,6 +62,7 @@ export function validateConfig(cfg) {
   const sum = cfg.targets.reduce((a, t) => a + t.target, 0);
   if (Math.abs(sum - 100) > 0.01) errors.push(`Targets add up to ${sum}%; they must total 100%`);
   if (!(cfg.band > 0 && cfg.band <= 50)) errors.push("Band must be between 0 and 50 points");
+  if (!["band", "monthly"].includes(cfg.rebalance)) errors.push('Rebalance must be "band" or "monthly"');
   if (!(cfg.cashBuffer >= 0 && cfg.cashBuffer < 50)) errors.push("Cash buffer must be 0–50%");
   if (!(cfg.minTrade >= 1)) errors.push("Minimum trade must be at least $1");
   if (!/^\d{2}:\d{2}$/.test(cfg.checkTimeET) || cfg.checkTimeET < "09:35" || cfg.checkTimeET > "15:45") errors.push("Check time must be HH:MM between 09:35 and 15:45 ET");
@@ -100,6 +104,17 @@ function nyNow() {
       .map((p) => [p.type, p.value])
   );
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+// Account ids pinned by the other paper-test* folders next to this one.
+function siblingPins() {
+  const here = path.resolve(dataDir), parent = path.dirname(here);
+  return fs.readdirSync(parent)
+    .filter((d) => /^paper-test/.test(d) && path.join(parent, d) !== here)
+    .map((d) => {
+      try { return { dir: d, id: JSON.parse(fs.readFileSync(path.join(parent, d, "config.json"), "utf8")).accountId }; } catch { return { dir: d }; }
+    })
+    .filter((x) => x.id);
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -159,6 +174,17 @@ export async function runOnce({ force = false, reason = "schedule" } = {}) {
     if (account.trading_blocked || account.account_blocked || account.status !== "ACTIVE") {
       return journal({ type: "error", date, reason, message: `Account not tradable (status ${account.status})` });
     }
+    // Each test is pinned to the paper account it started on, so keys pasted into
+    // the wrong slot can't trade one test's strategy in another test's account.
+    if (cfg.accountId && cfg.accountId !== account.id) {
+      return journal({ type: "error", date, reason, message: "These keys belong to a different paper account than the one this test started on; nothing traded" });
+    }
+    if (!cfg.accountId) {
+      // Never start a new test on an account another test folder already uses.
+      const owner = siblingPins().find((x) => x.id === account.id);
+      if (owner) return journal({ type: "error", date, reason, message: `These keys belong to the paper account ${owner.dir} already uses; nothing traded` });
+      saveConfig({ accountId: account.id });
+    }
     const open = await alpaca.openOrders();
     if (open.length) return journal({ type: "skip", date, reason, message: `${open.length} open order(s) still pending; not trading on top of them` });
 
@@ -185,13 +211,18 @@ export async function runOnce({ force = false, reason = "schedule" } = {}) {
 
     if (!cfg.startedAt) saveConfig({ startedAt: date, startEquity: Math.round(a.total * 100) / 100 });
 
-    const p = plan(a, { band: cfg.band, minTrade: cfg.minTrade, fractional: true, cashBuffer: cfg.cashBuffer });
+    const monthly = cfg.rebalance === "monthly";
+    const monthDue = monthly && !readJournal(300).some((e) => e.type === "run" && e.date?.slice(0, 7) === date.slice(0, 7));
+    const p = plan(a, { band: monthly ? Infinity : cfg.band, minTrade: cfg.minTrade, fractional: true, cashBuffer: cfg.cashBuffer, force: monthDue });
     journal({
       type: "check", date, reason, equity: a.total, cash,
       weights: a.rows.map((r) => ({ symbol: r.symbol, price: r.price, weight: +r.weight.toFixed(3), target: r.target, drift: +r.drift.toFixed(3) })),
       outOfBand: p.outOfBand.map((r) => r.symbol), needed: p.needed,
     });
-    if (!p.needed) return journal({ type: "run", date, reason, traded: false, message: "All holdings within band" });
+    if (!p.needed || !p.trades.length) {
+      const message = monthly ? (monthDue ? "Monthly rebalance: already on target" : "Monthly mode: next rebalance at the first check of next month") : "All holdings within band";
+      return journal({ type: "run", date, reason, traded: false, message });
+    }
 
     for (const t of p.trades) {
       if (t.amount > (a.total * cfg.maxOrderPct) / 100) {

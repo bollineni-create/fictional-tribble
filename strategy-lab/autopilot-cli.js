@@ -3,6 +3,9 @@
 import "./env.js";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { alpaca } from "./alpaca.js";
 import { runOnce, status, report, reportMarkdown, loadConfig, saveConfig, dataDir, stopPath } from "./autopilot.js";
 
 const addMonths = (day, n) => {
@@ -80,6 +83,57 @@ const commands = {
     }
     console.log(JSON.stringify({ notify: out.notify, final: out.final, review: out.review, summary: out.lines.join(" ") }));
   },
+  // Prints the paper account id these keys belong to (no secrets).
+  async "account-id"() { console.log((await alpaca.account()).id); },
+  // Runs cloud-run for every test folder (paper-test, paper-test-*), each in its
+  // own process with its own keys, and prints one combined JSON line. A folder
+  // whose keys aren't set is skipped; two folders on the same account are refused.
+  async "cloud-run-all"() {
+    const root = path.dirname(fileURLToPath(import.meta.url));
+    const readCfg = (d) => JSON.parse(fs.readFileSync(path.join(root, d, "config.json"), "utf8"));
+    const writeCfg = (d, patch) => fs.writeFileSync(path.join(root, d, "config.json"), JSON.stringify({ ...readCfg(d), ...patch }, null, 2));
+    const child = (d, c) => execFileSync(process.execPath, [path.join(root, "autopilot-cli.js"), c], {
+      cwd: root, env: { ...process.env, AUTOPILOT_DIR: d }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 15 * 60e3,
+    }).trim().split("\n").at(-1);
+    const dirs = fs.readdirSync(root).filter((d) => /^paper-test(-[\w-]+)?$/.test(d) && fs.existsSync(path.join(root, d, "config.json"))).sort();
+    const out = { notify: false, final: false, review: false, lines: [] };
+    const ready = [];
+    for (const d of dirs) {
+      const cfg = readCfg(d);
+      const prefix = cfg.alpacaKeyPrefix || "ALPACA";
+      if (cfg.completedAt) continue;
+      if (!(process.env[`${prefix}_API_KEY_ID`] && process.env[`${prefix}_API_SECRET_KEY`])) {
+        out.lines.push(`[${d}] waiting for ${prefix}_API_KEY_ID and ${prefix}_API_SECRET_KEY in the environment settings.`);
+        if (!cfg.keysMissingNotified) { out.notify = true; writeCfg(d, { keysMissingNotified: true }); }
+        continue;
+      }
+      if (cfg.keysMissingNotified) writeCfg(d, { keysMissingNotified: false });
+      try { ready.push({ d, id: child(d, "account-id") }); } catch (err) {
+        out.notify = true;
+        out.lines.push(`[${d}] couldn't reach its Alpaca account: ${(err.stderr || err.message).trim().split("\n").at(-1)}`);
+      }
+    }
+    for (const { d, id } of ready) {
+      // Same account as another reachable folder, or as one another folder is pinned to.
+      const clash = [...new Set([...ready.filter((r) => r.id === id).map((r) => r.d), ...dirs.filter((x) => readCfg(x).accountId === id), d])];
+      if (clash.length > 1) {
+        out.notify = true;
+        out.lines.push(`[${d}] skipped: ${clash.join(" and ")} use the same paper account. Each test needs keys for its own paper account.`);
+        continue;
+      }
+      try {
+        const r = JSON.parse(child(d, "cloud-run"));
+        out.notify ||= r.notify; out.review ||= r.review;
+        out.lines.push(`[${d}] ${r.summary}`);
+      } catch (err) {
+        out.notify = true;
+        out.lines.push(`[${d}] run failed: ${(err.stderr || err.message).trim().split("\n").at(-1)}`);
+      }
+    }
+    out.final = dirs.length > 0 && dirs.every((d) => readCfg(d).completedAt);
+    if (out.final) out.notify = true;
+    console.log(JSON.stringify({ notify: out.notify, final: out.final, review: out.review, summary: out.lines.join(" ") }));
+  },
   async status() {
     const s = await status();
     print({ ...s, journal: s.journal.slice(0, 10) });
@@ -105,7 +159,7 @@ const commands = {
   },
   async config() { print(loadConfig()); },
   async help() {
-    console.log(`Commands: once | run-now | loop | cloud-run | status | report | enable | disable | stop | resume | config`);
+    console.log(`Commands: once | run-now | loop | cloud-run | cloud-run-all | account-id | status | report | enable | disable | stop | resume | config`);
   },
 };
 
