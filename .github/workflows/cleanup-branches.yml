@@ -2,6 +2,8 @@
 # A branch counts as done when main already contains it (merged, rebased or
 # cherry-picked) or when merging it into main would change nothing (squashed).
 # Branches with an open PR, unmerged commits, or a merge conflict are kept.
+# KEEP lists long-lived branches that are never deleted (the paper test's
+# daily log commits to claude/keen-albattani-ycdb43).
 name: Clean up merged branches
 
 on:
@@ -34,6 +36,7 @@ jobs:
         run: |
           set -uo pipefail
           base_tree=$(git rev-parse "$BASE^{tree}")
+          KEEP="claude/keen-albattani-ycdb43"
           open=$(gh pr list --state open --limit 500 --json headRefName -q '.[].headRefName')
 
           merged() {
@@ -45,7 +48,8 @@ jobs:
           dels=()
           for ref in $(git for-each-ref --format='%(refname:short)' 'refs/remotes/origin/claude/'); do
             b=${ref#origin/}
-            if grep -qxF "$b" <<<"$open"; then echo "keep   $b (open PR)"
+            if grep -qxF "$b" <<<"$KEEP"; then echo "keep   $b (long-lived)"
+            elif grep -qxF "$b" <<<"$open"; then echo "keep   $b (open PR)"
             elif merged "$ref"; then echo "delete $b"; dels+=("$b")
             else echo "keep   $b (unmerged work)"
             fi
