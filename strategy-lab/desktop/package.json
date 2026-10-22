@@ -1,0 +1,75 @@
+{
+  "name": "strategy-lab-desktop",
+  "productName": "Strategy Lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Strategy Lab as a Mac app: accounts, backtests, results and ongoing paper-trading projects in one window.",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "npm --prefix .. install --omit=dev --no-audit --no-fund && electron .",
+    "build:mac": "npm --prefix .. install --omit=dev --no-audit --no-fund && electron-builder --mac",
+    "build:dir": "npm --prefix .. install --omit=dev --no-audit --no-fund && electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "com.strategylab.app",
+    "productName": "Strategy Lab",
+    "copyright": "For research and education. Not investment advice.",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "..",
+        "to": "strategy-lab",
+        "filter": [
+          "**/*",
+          "!desktop/**",
+          "!autopilot-data/**",
+          "!paper-test/**",
+          "!.env"
+        ]
+      },
+      {
+        "from": "../node_modules",
+        "to": "strategy-lab/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.finance",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "darkModeSupport": true,
+      "identity": "-"
+    },
+    "linux": {
+      "target": "dir",
+      "category": "Office"
+    },
+    "publish": null
+  }
+}

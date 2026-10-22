@@ -9,6 +9,9 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const money = (v) => v.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 const day = (t) => new Date(t).toISOString().slice(0, 10);
 
+// Running inside the Mac app (Electron): style the top bar as the window's title bar.
+if (/Electron/.test(navigator.userAgent)) document.documentElement.classList.add("desktop");
+
 const store = {
   get(key, fallback) {
     try { return JSON.parse(localStorage.getItem(`slab:${key}`)) ?? fallback; } catch { return fallback; }
@@ -27,6 +30,7 @@ const state = {
   alerts: store.get("alerts", []),
   deployments: store.get("deployments", []),
   activity: store.get("activity", []),
+  backtests: store.get("backtests", []),
 };
 
 // ---------- tabs ----------
@@ -34,6 +38,7 @@ document.querySelectorAll(".tab").forEach((tab) =>
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${tab.dataset.view}`));
+    if (tab.dataset.view === "overview") { renderOverview(); loadOverview(); }
     if (tab.dataset.view === "monitor") renderMonitor();
     if (tab.dataset.view === "rebalance") { renderRebalance(); loadAutopilot(); }
     if (tab.dataset.view === "build" && lastResult) renderResults(lastResult.result, lastResult.data);
@@ -196,6 +201,7 @@ async function runAndShow() {
     });
     lastResult = { result, data };
     renderResults(result, data);
+    recordBacktest(result.metrics, data);
   } catch (err) {
     showError(err.message);
   }
@@ -242,6 +248,32 @@ function renderResults({ equity, trades, metrics: m }, data) {
       ? trades.map((t, k) => `<tr><td>${k + 1}</td><td>${day(t.entryTime)}</td><td>${t.entryPrice.toFixed(2)}</td><td>${day(t.exitTime)}</td><td>${t.exitPrice.toFixed(2)}</td><td>${t.bars}</td><td class="${sign(t.pnl)}">${money(t.pnl)}</td><td class="${sign(t.returnPct)}">${t.returnPct.toFixed(2)}%</td><td>${t.reason}</td></tr>`).join("")
       : `<tr><td colspan="9" class="empty">No trades. The entry rule never fired on this data.</td></tr>`
   }</tbody>`;
+}
+
+// Keep a history of backtest results for the Overview. Re-running the same
+// strategy on the same data replaces its earlier entry instead of adding one.
+function hash(str) {
+  let h = 0;
+  for (let k = 0; k < str.length; k++) h = (Math.imul(31, h) + str.charCodeAt(k)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+function recordBacktest(m, data) {
+  const code = $("#code").value;
+  const entry = {
+    name: $("#strategy-name").value.trim() || "Untitled strategy",
+    code,
+    symbol: ($("#symbol").value.trim() || "SPY").toUpperCase(),
+    source: state.csv ? "csv" : $("#data-source").value,
+    history: $("#history").value,
+    from: data.time[0],
+    to: data.time.at(-1),
+    ran: Date.now(),
+    totalReturn: m.totalReturn, buyHold: m.buyHold, cagr: m.cagr, maxDrawdown: m.maxDrawdown, sharpe: m.sharpe, trades: m.trades, winRate: m.winRate,
+  };
+  entry.key = hash([entry.name, entry.symbol, entry.source, entry.history, code].join("|"));
+  state.backtests = [entry, ...state.backtests.filter((b) => b.key !== entry.key)].slice(0, 100);
+  store.set("backtests", state.backtests);
 }
 
 $("#export-trades").addEventListener("click", () => {
@@ -881,6 +913,185 @@ function renderAutopilot(extra = "") {
 
 setInterval(() => $("#view-rebalance").classList.contains("active") && loadAutopilot(), 60000);
 
+// ---------- overview: accounts, projects, backtests, what's next ----------
+const ov = { projects: null, projectsError: null, autopilot: null };
+const pct = (v, digits = 1) => `${v >= 0 ? "+" : ""}${v.toFixed(digits)}%`;
+const signCls = (v) => (v > 0 ? "pos" : v < 0 ? "neg" : "");
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 864e5);
+
+async function loadOverview() {
+  const [p, a] = await Promise.allSettled([fetchJson("/api/projects"), fetchJson("/api/autopilot/status")]);
+  ov.projects = p.status === "fulfilled" ? p.value.projects : [];
+  ov.projectsError = p.status === "rejected" ? p.reason.message : null;
+  ov.autopilot = a.status === "fulfilled" ? a.value : { error: a.reason.message };
+  renderOverview();
+}
+
+function deploymentEquity(d) {
+  const f = (d.mode ?? "sim") === feedMode() ? feed(d.symbol) : null;
+  const price = f?.status === "ready" ? f.bars.at(-1).close : d.entryPrice;
+  return d.cash + d.shares * (price ?? 0);
+}
+
+function renderOverview() {
+  if (!$("#view-overview").classList.contains("active")) return;
+  const hour = new Date().getHours();
+  $("#ov-title").textContent = `Good ${hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening"}`;
+  $("#ov-sub").textContent = `${new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}. Accounts, ongoing projects, backtests and what's coming up.`;
+
+  const ap = ov.autopilot, projects = ov.projects || [];
+  const acct = ap?.account;
+  // The account's starting point: this computer's test if it has started, else the first started project.
+  const started = projects.find((p) => p.isLocal && p.start) || projects.find((p) => p.start && !p.error);
+  const sinceStart = acct && started?.config.startEquity ? (acct.equity / started.config.startEquity - 1) * 100 : null;
+
+  const rb = analyze(portfolio.holdings, rbPrices, Number(portfolio.cash) || 0);
+  const rbPriced = portfolio.holdings.every((h) => !h.symbol || rbPrices[h.symbol] != null);
+  const rbOut = rbPriced ? plan(rb, { band: portfolio.band, minTrade: portfolio.minTrade, fractional: portfolio.fractional, cashBuffer: portfolio.cashBuffer }).outOfBand.length : 0;
+  const deps = state.deployments.map((d) => ({ d, eq: deploymentEquity(d) }));
+  const depTotal = deps.reduce((s, x) => s + x.eq, 0), depCapital = deps.reduce((s, x) => s + x.d.capital, 0);
+  const running = projects.filter((p) => p.status === "running").length;
+  const best = state.backtests.reduce((b, x) => (!b || x.totalReturn - x.buyHold > b.totalReturn - b.buyHold ? x : b), null);
+
+  const card = (label, value, cls = "", sub = "") => `<div class="metric"><div class="label">${label}</div><div class="value ${cls}">${value}</div>${sub ? `<div class="note" style="margin:2px 0 0">${sub}</div>` : ""}</div>`;
+  $("#ov-metrics").innerHTML = [
+    card("Alpaca paper equity", acct ? money(acct.equity) : "–", "", acct ? `${money(acct.cash)} cash` : ap?.configured === false ? "Not connected" : ap?.accountError ? "Unavailable" : "Loading…"),
+    card("Since test start", sinceStart == null ? "–" : pct(sinceStart, 2), signCls(sinceStart ?? 0), started ? `from ${money(started.config.startEquity)} on ${started.start}` : "Not started"),
+    card("My portfolio", rbPriced ? money(rb.total) : "…", "", rbPriced ? (rbOut ? `<span class="neg">${rbOut} out of band</span>` : "Within band") : "Loading prices"),
+    card("Paper strategies", deps.length ? money(depTotal) : "–", depCapital ? signCls(depTotal - depCapital) : "", deps.length ? `${deps.filter((x) => x.d.active).length} running · ${pct((depTotal / depCapital - 1) * 100, 2)}` : "None yet"),
+    card("Projects running", String(running), "", `${projects.length} tracked`),
+    card("Backtests", String(state.backtests.length), "", best ? `Best vs. hold: ${esc(best.name)} on ${esc(best.symbol)}` : "Run one in Build & Test"),
+  ].join("");
+
+  // Accounts
+  const rows = [];
+  if (acct) {
+    const pnl = (ap.positions || []).reduce((s, p) => s + p.pnl, 0);
+    rows.push([`<strong>Alpaca paper</strong><div class="note" style="margin:0">${(ap.positions || []).map((p) => esc(p.symbol)).join(" · ") || "No positions"}</div>`, "Paper brokerage", money(acct.equity), `<span class="${signCls(pnl)}">${money(pnl)}</span>`, esc(acct.status), "rebalance"]);
+  } else {
+    const why = ap?.configured === false ? "Not connected: add paper keys to .env" : ap?.accountError || ap?.error || "Loading…";
+    rows.push(["<strong>Alpaca paper</strong>", "Paper brokerage", "–", "–", `<span class="note">${esc(why)}</span>`, "rebalance"]);
+  }
+  rows.push([`<strong>My portfolio</strong><div class="note" style="margin:0">${portfolio.holdings.filter((h) => h.symbol).map((h) => `${esc(h.symbol)} ${h.target}%`).join(" · ")}</div>`, "Tracked holdings (advice only)", rbPriced ? money(rb.total) : "…", "–", !rbPriced ? `<span class="note">Loading prices…</span>` : rbOut ? `<span class="neg">${rbOut} out of band</span>` : "Within band", "rebalance"]);
+  for (const { d, eq } of deps) {
+    const ret = (eq / d.capital - 1) * 100;
+    rows.push([`<strong>${esc(d.name)}</strong><div class="note" style="margin:0">${esc(d.symbol)} · ${d.shares > 0 ? `long @ ${d.entryPrice.toFixed(2)}` : "flat"} · ${d.trades} closed trades</div>`, `Paper strategy (${d.mode === "live" ? "live" : "simulated"})`, money(eq), `<span class="${signCls(ret)}">${pct(ret, 2)}</span>`, d.active ? "Running" : "Stopped", "monitor"]);
+  }
+  $("#ov-accounts").innerHTML = `<thead><tr><th>Account</th><th>Type</th><th>Value</th><th>P&amp;L</th><th>Status</th><th></th></tr></thead><tbody>${rows
+    .map(([a, t, v, p, st, view]) => `<tr><td>${a}</td><td class="note">${t}</td><td>${v}</td><td>${p}</td><td class="status">${st}</td><td><button class="btn small" data-goto="${view}">Open</button></td></tr>`)
+    .join("")}</tbody>`;
+
+  // Coming up
+  const today = todayStr();
+  const upcoming = projects.flatMap((p) => (p.milestones || []).filter((m) => !m.done && p.status !== "completed").map((m) => ({ ...m, project: p.name })));
+  for (const p of projects) {
+    if (p.status === "running" || p.status === "waiting") upcoming.push({ date: today, label: `Daily rebalance check after ${p.config.checkTimeET} ET (market days)`, project: p.name });
+  }
+  upcoming.sort((a, b) => a.date.localeCompare(b.date));
+  $("#ov-upcoming").innerHTML = upcoming.length
+    ? upcoming.slice(0, 10).map((u) => {
+        const n = daysBetween(today, u.date);
+        return `<li><span><strong>${esc(u.label)}</strong><div class="note" style="margin:0">${esc(u.project)}</div></span><span class="when"><span>${n <= 0 ? "Today" : n === 1 ? "Tomorrow" : `in ${n} days`}</span><span class="note" style="margin:0">${u.date}</span></span></li>`;
+      }).join("")
+    : `<li class="empty">Nothing scheduled. Start a paper test in the Rebalance tab to see its milestones here.</li>`;
+
+  // Projects
+  $("#ov-projects").innerHTML = ov.projectsError
+    ? `<p class="error">Couldn't load projects: ${esc(ov.projectsError)}</p>`
+    : !ov.projects
+      ? `<p class="note">Loading…</p>`
+      : projects.length
+        ? projects.map(projectCard).join("")
+        : `<div class="panel empty">No projects yet. Turn on the paper autopilot in the Rebalance tab, or add an existing project folder (such as the repo's <code>strategy-lab/paper-test</code>) with File › Add Project Folder in the Mac app.</div>`;
+
+  // Backtests
+  const label = { live: "Live", sim: "Simulated", csv: "CSV" };
+  $("#ov-backtests").innerHTML = state.backtests.length
+    ? `<thead><tr><th>Strategy</th><th>Symbol</th><th>Data</th><th>Period</th><th>Return</th><th>Buy &amp; hold</th><th>vs. hold</th><th>CAGR</th><th>Max DD</th><th>Sharpe</th><th>Trades</th><th>Run</th><th></th></tr></thead><tbody>${state.backtests
+        .map((b) => {
+          const edge = b.totalReturn - b.buyHold;
+          return `<tr><td><strong>${esc(b.name)}</strong></td><td>${esc(b.symbol)}</td><td class="note">${label[b.source] || esc(b.source)}</td><td class="note">${day(b.from)} → ${day(b.to)}</td><td class="${signCls(b.totalReturn)}">${pct(b.totalReturn)}</td><td class="${signCls(b.buyHold)}">${pct(b.buyHold)}</td><td class="${signCls(edge)}">${pct(edge)}</td><td class="${signCls(b.cagr)}">${pct(b.cagr)}</td><td class="neg">${b.maxDrawdown.toFixed(1)}%</td><td>${b.sharpe.toFixed(2)}</td><td>${b.trades}</td><td class="note">${new Date(b.ran).toLocaleDateString()}</td><td><button class="btn small" data-bt-open="${b.key}">Open</button> <button class="link" data-bt-del="${b.key}" title="Remove">✕</button></td></tr>`;
+        })
+        .join("")}</tbody>`
+    : `<tbody><tr><td class="empty">No backtests yet. Every backtest you run in Build &amp; Test is saved here with its results.</td></tr></tbody>`;
+}
+
+function projectCard(p) {
+  if (p.error) return `<div class="panel project"><h4>${esc(p.name)}</h4><p class="error">${esc(p.error)}</p><p class="note">${esc(p.dir)}</p></div>`;
+  const statusText = { running: "Running", waiting: "Waiting for first check", off: "Off", stopped: "Emergency stop", completed: "Completed" }[p.status];
+  const today = todayStr();
+  let progress = "";
+  if (p.start && p.end) {
+    const total = Math.max(1, daysBetween(p.start, p.end)), done = Math.min(total, Math.max(0, daysBetween(p.start, today)));
+    const marks = p.milestones.filter((m) => m.date > p.start && m.date < p.end && !/monthly/i.test(m.label))
+      .map((m) => `<i class="mark ${m.done ? "done" : ""}" style="left:${(daysBetween(p.start, m.date) / total) * 100}%" title="${esc(m.label)} · ${m.date}"></i>`).join("");
+    progress = `<div class="progress" title="${done} of ${total} days"><div class="fill" style="width:${(done / total) * 100}%"></div>${marks}</div>
+      <div class="progress-labels note"><span>${p.start}</span><span>Day ${done} of ${total} · ${((done / total) * 100).toFixed(0)}%</span><span>${p.end}</span></div>`;
+  }
+  const ret = p.lastEquity && p.config.startEquity ? (p.lastEquity / p.config.startEquity - 1) * 100 : null;
+  const recent = p.recent.slice(0, 3).map((e) => {
+    const what = e.type === "order" ? `${e.side} ${esc(e.symbol)} → ${esc(e.status)}` : e.type === "check" ? `Check: ${money(e.equity)}${e.outOfBand?.length ? `, out of band: ${e.outOfBand.map(esc).join(", ")}` : ", within band"}` : `${e.type === "error" ? "⚠️ " : ""}${esc(e.message || e.type)}`;
+    return `<li><span><time>${esc(e.date || "")}</time>${what}</span></li>`;
+  }).join("");
+  return `<div class="panel project">
+    <div class="panel-head"><div><h4>${esc(p.name)}</h4><div class="note" style="margin:0" title="${esc(p.dir)}">${p.config.targets.map((t) => `${esc(t.symbol)} ${t.target}%`).join(" · ")} · ±${p.config.band} pt band</div></div><span class="pill ${p.status === "running" ? "on" : ""}">${statusText}</span></div>
+    ${progress || `<p class="note">Starts at the first rebalance check.</p>`}
+    <div class="project-stats">
+      <div><div class="note">Last equity</div><strong>${p.lastEquity ? money(p.lastEquity) : "–"}</strong>${ret == null ? "" : ` <span class="${signCls(ret)}">${pct(ret, 2)}</span>`}</div>
+      <div><div class="note">Rebalances</div><strong>${p.stats.rebalances}</strong></div>
+      <div><div class="note">Orders</div><strong>${p.stats.orders}</strong>${p.stats.ordersNotFilled ? ` <span class="neg">${p.stats.ordersNotFilled} unfilled</span>` : ""}</div>
+      <div><div class="note">Errors</div><strong class="${p.stats.errors ? "neg" : ""}">${p.stats.errors}</strong></div>
+    </div>
+    <ul class="list activity">${recent || `<li class="empty">No activity yet.</li>`}</ul>
+    <div class="row wrap" style="margin:10px 0 0">${p.reports.length ? p.reports.slice(0, 6).map((f) => `<button class="btn small" data-report="${p.id}" data-file="${esc(f)}">${esc(f.replace(/\.md$/, ""))}</button>`).join("") : `<span class="note">Reports appear here monthly and at the review checkpoint.</span>`}</div>
+  </div>`;
+}
+
+document.addEventListener("click", async (e) => {
+  const t = e.target.closest("button");
+  if (!t) return;
+  if (t.dataset.goto) document.querySelector(`.tab[data-view="${t.dataset.goto}"]`).click();
+  if (t.dataset.report) {
+    try {
+      const { markdown } = await fetchJson(`/api/projects/report?id=${encodeURIComponent(t.dataset.report)}&file=${encodeURIComponent(t.dataset.file)}`);
+      $("#ov-report-title").textContent = t.dataset.file;
+      $("#ov-report").textContent = markdown;
+    } catch (err) {
+      $("#ov-report-title").textContent = "Report";
+      $("#ov-report").textContent = err.message;
+    }
+    $("#ov-report-panel").hidden = false;
+    $("#ov-report-panel").scrollIntoView({ behavior: "smooth" });
+  }
+  if (t.dataset.btOpen) {
+    const b = state.backtests.find((x) => x.key === t.dataset.btOpen);
+    loadStrategy(b);
+    if (b.source !== "csv") {
+      $("#symbol").value = b.symbol;
+      $("#data-source").value = b.source;
+      $("#history").value = b.history;
+    }
+    document.querySelector('.tab[data-view="build"]').click();
+    runAndShow();
+  }
+  if (t.dataset.btDel) {
+    state.backtests = state.backtests.filter((x) => x.key !== t.dataset.btDel);
+    store.set("backtests", state.backtests);
+    renderOverview();
+  }
+});
+$("#ov-report-close").addEventListener("click", () => ($("#ov-report-panel").hidden = true));
+$("#ov-refresh").addEventListener("click", loadOverview);
+$("#ov-clear-bt").addEventListener("click", () => {
+  if (!state.backtests.length || !confirm("Clear the backtest history? Saved strategies are kept.")) return;
+  state.backtests = [];
+  store.set("backtests", []);
+  renderOverview();
+});
+setInterval(renderOverview, 5000);
+setInterval(() => $("#view-overview").classList.contains("active") && loadOverview(), 60000);
+
 // ---------- init ----------
 (async function init() {
   try {
@@ -901,4 +1112,5 @@ setInterval(() => $("#view-rebalance").classList.contains("active") && loadAutop
   syncRuleInputs();
   refreshPortfolioPrices();
   setInterval(refreshPortfolioPrices, 15000);
+  loadOverview();
 })();
