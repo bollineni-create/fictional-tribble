@@ -6,7 +6,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { alpaca } from "./alpaca.js";
-import { runOnce, status, report, reportMarkdown, loadConfig, saveConfig, dataDir, stopPath } from "./autopilot.js";
+import { runOnce, status, report, reportMarkdown, loadConfig, saveConfig, dataDir, stopPath, nyNow } from "./autopilot.js";
 
 const addMonths = (day, n) => {
   const d = new Date(`${day}T00:00:00Z`);
@@ -97,6 +97,13 @@ const commands = {
     }).trim().split("\n").at(-1);
     const dirs = fs.readdirSync(root).filter((d) => /^paper-test(-[\w-]+)?$/.test(d) && fs.existsSync(path.join(root, d, "config.json"))).sort();
     const out = { notify: false, final: false, review: false, lines: [] };
+    // A started test that can't run today gets a journal entry, so every missed day has an explanation.
+    const miss = (d, message) => {
+      const cfg = readCfg(d);
+      if (!cfg.startedAt || !cfg.enabled) return;
+      const entry = { ts: new Date().toISOString(), type: "error", date: nyNow().date, reason: "schedule", message };
+      fs.appendFileSync(path.join(root, d, "journal.jsonl"), JSON.stringify(entry) + "\n");
+    };
     const ready = [];
     for (const d of dirs) {
       const cfg = readCfg(d);
@@ -104,13 +111,16 @@ const commands = {
       if (cfg.completedAt) continue;
       if (!(process.env[`${prefix}_API_KEY_ID`] && process.env[`${prefix}_API_SECRET_KEY`])) {
         out.lines.push(`[${d}] waiting for ${prefix}_API_KEY_ID and ${prefix}_API_SECRET_KEY in the environment settings.`);
+        miss(d, `Not checked: ${prefix}_API_KEY_ID and ${prefix}_API_SECRET_KEY aren't set in the environment`);
         if (!cfg.keysMissingNotified) { out.notify = true; writeCfg(d, { keysMissingNotified: true }); }
         continue;
       }
       if (cfg.keysMissingNotified) writeCfg(d, { keysMissingNotified: false });
       try { ready.push({ d, id: child(d, "account-id") }); } catch (err) {
+        const why = (err.stderr || err.message).trim().split("\n").at(-1);
         out.notify = true;
-        out.lines.push(`[${d}] couldn't reach its Alpaca account: ${(err.stderr || err.message).trim().split("\n").at(-1)}`);
+        out.lines.push(`[${d}] couldn't reach its Alpaca account: ${why}`);
+        miss(d, `Not checked: couldn't reach its Alpaca account (${why})`);
       }
     }
     for (const { d, id } of ready) {
@@ -119,6 +129,7 @@ const commands = {
       if (clash.length > 1) {
         out.notify = true;
         out.lines.push(`[${d}] skipped: ${clash.join(" and ")} use the same paper account. Each test needs keys for its own paper account.`);
+        miss(d, `Not checked: ${clash.join(" and ")} use the same paper account`);
         continue;
       }
       try {
@@ -126,8 +137,10 @@ const commands = {
         out.notify ||= r.notify; out.review ||= r.review;
         out.lines.push(`[${d}] ${r.summary}`);
       } catch (err) {
+        const why = (err.stderr || err.message).trim().split("\n").at(-1);
         out.notify = true;
-        out.lines.push(`[${d}] run failed: ${(err.stderr || err.message).trim().split("\n").at(-1)}`);
+        out.lines.push(`[${d}] run failed: ${why}`);
+        miss(d, `Run failed: ${why}`);
       }
     }
     out.final = dirs.length > 0 && dirs.every((d) => readCfg(d).completedAt);
